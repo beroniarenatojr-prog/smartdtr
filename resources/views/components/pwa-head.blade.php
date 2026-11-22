@@ -15,30 +15,40 @@
             navigator.serviceWorker.register(@json(asset('sw.js')), { scope: @json(url('/')) }).catch(function () {});
         });
     }
+
     window.__smartdtrDeferredInstall = null;
+
     window.addEventListener('beforeinstallprompt', function (event) {
         event.preventDefault();
         window.__smartdtrDeferredInstall = event;
-        document.querySelectorAll('[data-pwa-install]').forEach(function (el) {
-            el.hidden = false;
-        });
     });
+
     window.addEventListener('appinstalled', function () {
         window.__smartdtrDeferredInstall = null;
-        document.querySelectorAll('[data-pwa-install]').forEach(function (el) {
-            el.hidden = true;
-        });
     });
+
+    function smartdtrInstallHelp() {
+        var isIos = /iphone|ipad|ipod/i.test(navigator.userAgent)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        var message = isIos
+            ? 'On iPhone/iPad: tap Share, then Add to Home Screen.'
+            : 'On this browser: use the Install icon in the address bar, or the browser menu → Install app / Add to Home screen.';
+        window.alert(message);
+    }
+
     document.addEventListener('click', function (event) {
         var btn = event.target.closest('[data-pwa-install]');
-        if (!btn || !window.__smartdtrDeferredInstall) return;
+        if (!btn) return;
         event.preventDefault();
-        window.__smartdtrDeferredInstall.prompt();
-        window.__smartdtrDeferredInstall.userChoice.finally(function () {
-            window.__smartdtrDeferredInstall = null;
-            document.querySelectorAll('[data-pwa-install]').forEach(function (el) {
-                el.hidden = true;
+
+        if (window.__smartdtrDeferredInstall) {
+            window.__smartdtrDeferredInstall.prompt();
+            window.__smartdtrDeferredInstall.userChoice.finally(function () {
+                window.__smartdtrDeferredInstall = null;
             });
-        });
+            return;
+        }
+
+        smartdtrInstallHelp();
     });
 </script>

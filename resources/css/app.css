@@ -1184,7 +1184,7 @@ body {
 }
 
 .landing-portals {
-    @apply grid md:grid-cols-2 gap-6 max-w-4xl mx-auto;
+    @apply grid md:grid-cols-3 gap-6 max-w-5xl mx-auto;
 }
 
 .landing-portal-card {

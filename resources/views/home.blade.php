@@ -17,7 +17,7 @@
                 <span class="landing-brand-text">SMART-DTR</span>
             </a>
             <nav class="landing-nav-links">
-                <button type="button" hidden data-pwa-install class="landing-nav-btn landing-nav-btn-ghost">Install App</button>
+                <button type="button" data-pwa-install class="landing-nav-btn landing-nav-btn-ghost">Install App</button>
                 <a href="{{ route('login') }}" class="landing-nav-btn landing-nav-btn-ghost">Sign In</a>
                 <a href="{{ route('staff.register') }}" class="landing-nav-btn landing-nav-btn-solid">Sign Up</a>
             </nav>
@@ -39,6 +39,11 @@
                 Face recognition attendance, automated DepEd CS Form No. 48 DTR generation,
                 leave management, and real-time HR monitoring — built for INHS personnel.
             </p>
+            <div class="landing-hero-actions">
+                <button type="button" data-pwa-install class="btn-landing-primary">Install App</button>
+                <a href="{{ route('login') }}" class="btn-landing-secondary">Sign In</a>
+                <a href="{{ route('staff.register') }}" class="btn-landing-secondary">Sign Up</a>
+            </div>
             <div class="landing-hero-stats">
                 <div class="landing-stat">
                     <span class="landing-stat-icon">
@@ -162,7 +167,7 @@
                     <p class="landing-portal-desc">Create an employee account with face registration. HR reviews and activates your access.</p>
                     <span class="landing-portal-cta">Create Account →</span>
                 </a>
-                <button type="button" hidden data-pwa-install class="landing-portal-card landing-portal-staff text-left w-full">
+                <button type="button" data-pwa-install class="landing-portal-card landing-portal-staff text-left w-full cursor-pointer">
                     <div class="landing-portal-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M4 19h16"/></svg>
                     </div>
