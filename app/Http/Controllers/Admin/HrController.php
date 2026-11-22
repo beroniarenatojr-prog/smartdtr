@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\EmailChangeRequest;
 use App\Models\LeaveRequest;
 use App\Models\LocatorRequest;
 use App\Models\Personnel;
 use App\Models\StaffUser;
 use App\Models\TravelOrder;
 use App\Services\AuditLogService;
+use App\Services\EmailChangeRequestService;
 use App\Services\FaceSampleEnrollmentService;
 use App\Services\LeaveApplicationExportService;
 use App\Services\LeaveRequestService;
@@ -17,6 +19,7 @@ use App\Services\NotificationService;
 use App\Services\TravelAuthorityWordService;
 use App\Services\TravelOrderService;
 use App\Services\TravelOrderWordService;
+use RuntimeException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -33,7 +36,8 @@ class HrController extends Controller
         protected LeaveApplicationExportService $leaveApplicationExport,
         protected AuditLogService $auditLog,
         protected NotificationService $notifications,
-        protected FaceSampleEnrollmentService $faceSamples
+        protected FaceSampleEnrollmentService $faceSamples,
+        protected EmailChangeRequestService $emailChangeRequests
     ) {}
 
     /**
@@ -363,5 +367,60 @@ class HrController extends Controller
         );
 
         return $this->backWithEmailStatus('Travel order rejected.');
+    }
+
+    public function emailChangeRequests(): View
+    {
+        $requests = EmailChangeRequest::with(['staffUser', 'reviewer'])
+            ->latest()
+            ->get();
+
+        return view('admin.hr.email-changes', compact('requests'));
+    }
+
+    public function approveEmailChange(Request $request, EmailChangeRequest $emailChangeRequest): RedirectResponse
+    {
+        if (! $this->adminUser()->canWrite()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'admin_notes' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            $this->emailChangeRequests->approve(
+                $emailChangeRequest,
+                auth('admin')->id(),
+                $validated['admin_notes'] ?? null
+            );
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return $this->backWithEmailStatus('Gmail change approved. Employee login email was updated.');
+    }
+
+    public function rejectEmailChange(Request $request, EmailChangeRequest $emailChangeRequest): RedirectResponse
+    {
+        if (! $this->adminUser()->canWrite()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'admin_notes' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            $this->emailChangeRequests->reject(
+                $emailChangeRequest,
+                auth('admin')->id(),
+                $validated['admin_notes'] ?? null
+            );
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return $this->backWithEmailStatus('Gmail change rejected.');
     }
 }

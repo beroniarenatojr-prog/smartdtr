@@ -67,6 +67,11 @@ class StaffUser extends Authenticatable
         return $this->hasMany(FaceEnrollment::class);
     }
 
+    public function emailChangeRequests(): HasMany
+    {
+        return $this->hasMany(EmailChangeRequest::class);
+    }
+
     /**
      * Build the display name ("Juan P. Dela Cruz Jr.") from the separate name fields.
      */

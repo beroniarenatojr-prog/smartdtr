@@ -12,6 +12,7 @@ use App\Models\Schedule;
 use App\Models\ScheduleOverride;
 use App\Models\TravelOrder;
 use App\Services\DailyStatusService;
+use App\Services\EmailChangeRequestService;
 use App\Services\ScheduleWeekService;
 use App\Services\LeaveApplicationExportService;
 use App\Services\LeaveBalanceService;
@@ -23,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class DashboardController extends Controller
@@ -34,7 +36,8 @@ class DashboardController extends Controller
         protected TravelAuthorityWordService $travelAuthorityWord,
         protected TravelOrderWordService $travelOrderWord,
         protected LeaveApplicationExportService $leaveApplicationExport,
-        protected ScheduleWeekService $scheduleWeek
+        protected ScheduleWeekService $scheduleWeek,
+        protected EmailChangeRequestService $emailChangeRequests
     ) {}
 
     public function index(): View
@@ -494,8 +497,33 @@ class DashboardController extends Controller
         $leaveCredits = $staff->personnel
             ? $this->leaveBalanceService->remaining($staff->personnel)
             : null;
+        $pendingEmailChange = $staff->emailChangeRequests()->pending()->latest()->first();
+        $recentEmailChanges = $staff->emailChangeRequests()->latest()->limit(5)->get();
 
-        return view('staff.profile', compact('staff', 'leaveCredits'));
+        return view('staff.profile', compact('staff', 'leaveCredits', 'pendingEmailChange', 'recentEmailChanges'));
+    }
+
+    public function requestEmailChange(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'new_email' => ['required', 'email:rfc', 'max:255', 'confirmed'],
+            'new_email_confirmation' => ['required', 'email:rfc', 'max:255'],
+        ], [
+            'new_email.confirmed' => 'The new Gmail confirmation does not match.',
+        ]);
+
+        try {
+            $this->emailChangeRequests->request(
+                $this->staffUser(),
+                $validated['new_email']
+            );
+        } catch (RuntimeException $e) {
+            return back()->withErrors(['new_email' => $e->getMessage()])->withInput();
+        }
+
+        return redirect()
+            ->route('staff.profile')
+            ->with('success', 'Gmail change submitted. Keep using your current email until HR approves the request.');
     }
 
     protected function normalizeTime(string $time): string
