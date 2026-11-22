@@ -7,6 +7,7 @@ use App\Models\Personnel;
 use App\Models\StaffUser;
 use App\Rules\StrongPassword;
 use App\Services\FaceSampleEnrollmentService;
+use App\Services\RegistrationSchemaRepair;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use RuntimeException;
@@ -25,7 +27,12 @@ class AuthController extends Controller
         return view('staff.register');
     }
 
-    public function register(Request $request, FaceSampleEnrollmentService $faces): RedirectResponse|JsonResponse
+    public function register(Request $request, FaceSampleEnrollmentService $faces, RegistrationSchemaRepair $schema): RedirectResponse|JsonResponse
+    {
+        return $this->attemptRegistration($request, $faces, $schema, 1);
+    }
+
+    private function attemptRegistration(Request $request, FaceSampleEnrollmentService $faces, RegistrationSchemaRepair $schema, int $attempt): RedirectResponse|JsonResponse
     {
         $request->merge([
             'last_name' => $this->formatPersonName((string) $request->input('last_name')),
@@ -127,6 +134,24 @@ class AuthController extends Controller
             // QueryException is a RuntimeException; never show raw SQL to the public.
             DB::rollBack();
             $this->deleteRegistrationFaces($personnelId);
+
+            if ($attempt === 1 && $schema->isRepairable($e)) {
+                try {
+                    $fixed = $schema->repair();
+                } catch (\Throwable $repairError) {
+                    report($repairError);
+                    $fixed = null;
+                }
+
+                if (is_array($fixed) && $fixed !== []) {
+                    Log::warning('Registration schema was repaired after a database error. Retrying the save.', [
+                        'repaired' => $fixed,
+                    ]);
+
+                    return $this->attemptRegistration($request, $faces, $schema, 2);
+                }
+            }
+
             report($e);
 
             return $this->registrationFailed($request, [

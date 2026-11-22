@@ -7,6 +7,7 @@ use App\Models\Personnel;
 use App\Models\StaffUser;
 use App\Services\FaceSampleEnrollmentService;
 use App\Services\PythonFaceEnrollmentValidator;
+use App\Services\RegistrationSchemaRepair;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -131,6 +132,48 @@ class StaffRegistrationFaceTest extends TestCase
         $this->assertStringNotContainsString('secrethash', $response->getContent());
         $this->assertDatabaseCount('staff_users', 0);
         $this->assertDatabaseCount('personnel', 0);
+    }
+
+    public function test_registration_retries_after_the_id_column_is_repaired(): void
+    {
+        Storage::fake('faces');
+
+        $this->mock(RegistrationSchemaRepair::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('isRepairable')->once()->andReturn(true);
+            $mock->shouldReceive('repair')->once()->andReturn(['staff_users', 'personnel']);
+        });
+
+        $calls = 0;
+        $this->mock(FaceSampleEnrollmentService::class, function (MockInterface $mock) use (&$calls): void {
+            $mock->shouldReceive('saveThreeSamples')->twice()->andReturnUsing(function () use (&$calls) {
+                if (++$calls === 1) {
+                    throw new QueryException(
+                        'mysql',
+                        'insert into `staff_users` (`email`) values (?)',
+                        ['juan.face@example.test'],
+                        new \PDOException("SQLSTATE[HY000]: General error: 1364 Field 'id' doesn't have a default value")
+                    );
+                }
+
+                return [
+                    'ok' => true,
+                    'message' => 'Three compatible face encodings verified.',
+                    'encodings' => 3,
+                    'max_distance' => 0.28,
+                ];
+            });
+        });
+
+        $this->postJson(route('staff.register'), $this->account([
+            'images' => $this->captures(),
+            'blink_verifications' => ['1', '1', '1'],
+        ]))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertSame(2, $calls);
+        $this->assertDatabaseCount('staff_users', 1);
+        $this->assertDatabaseCount('personnel', 1);
     }
 
     /**

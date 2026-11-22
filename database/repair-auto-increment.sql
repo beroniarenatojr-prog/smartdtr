@@ -1,80 +1,58 @@
--- SMART-DTR: repair id columns that lost AUTO_INCREMENT during a phpMyAdmin import.
+-- SMART-DTR: restore id columns that lost AUTO_INCREMENT during a phpMyAdmin import.
 --
--- Symptom: registration (or any "add" form) fails with
+-- Symptom on the registration page:
+--   Registration could not be saved because of a server problem.
+-- The database error behind that message is:
 --   SQLSTATE[HY000]: General error: 1364 Field 'id' doesn't have a default value
 --
--- How to run (Hostinger hPanel -> Databases -> phpMyAdmin):
---   1. Select the SMART-DTR database on the left.
---   2. Open the SQL tab, paste this whole file, and click Go.
---   3. The last result lists every table that was repaired.
+-- Prefer the app command (from the project directory, over SSH):
+--   php artisan smartdtr:repair-schema
 --
--- Safe to run more than once. It only touches integer `id` columns that are
--- missing AUTO_INCREMENT; it adds the PRIMARY KEY too when that is missing.
--- Existing rows and their ids are kept.
+-- Or paste this file into phpMyAdmin (SQL tab) or run:
+--   mysql -u USER -p DATABASE < database/repair-auto-increment.sql
+--
+-- Safe to run more than once. Existing rows and their ids are kept.
+-- staff_users, personnel, and audit_logs are first because registration writes those.
 
 SET FOREIGN_KEY_CHECKS = 0;
 
-DROP PROCEDURE IF EXISTS smartdtr_repair_auto_increment;
+ALTER TABLE `staff_users` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `personnel` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `audit_logs` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `staff_users` MODIFY `role` ENUM('employee', 'teacher', 'non_teaching', 'cleaning_staff') NOT NULL DEFAULT 'employee';
 
-DELIMITER $$
-
-CREATE PROCEDURE smartdtr_repair_auto_increment()
-BEGIN
-    DECLARE done INT DEFAULT 0;
-    DECLARE tbl VARCHAR(64);
-    DECLARE col_type VARCHAR(64);
-    DECLARE has_pk INT;
-
-    DECLARE cur CURSOR FOR
-        SELECT c.TABLE_NAME,
-               c.COLUMN_TYPE,
-               (SELECT COUNT(*)
-                  FROM information_schema.TABLE_CONSTRAINTS k
-                 WHERE k.TABLE_SCHEMA = c.TABLE_SCHEMA
-                   AND k.TABLE_NAME = c.TABLE_NAME
-                   AND k.CONSTRAINT_TYPE = 'PRIMARY KEY')
-          FROM information_schema.COLUMNS c
-          JOIN information_schema.TABLES t
-            ON t.TABLE_SCHEMA = c.TABLE_SCHEMA
-           AND t.TABLE_NAME = c.TABLE_NAME
-           AND t.TABLE_TYPE = 'BASE TABLE'
-         WHERE c.TABLE_SCHEMA = DATABASE()
-           AND c.COLUMN_NAME = 'id'
-           AND c.DATA_TYPE IN ('tinyint', 'smallint', 'mediumint', 'int', 'bigint')
-           AND c.EXTRA NOT LIKE '%auto_increment%';
-
-    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
-
-    DROP TEMPORARY TABLE IF EXISTS smartdtr_repaired;
-    CREATE TEMPORARY TABLE smartdtr_repaired (table_name VARCHAR(64), added_primary_key VARCHAR(3));
-
-    OPEN cur;
-    repair_loop: LOOP
-        FETCH cur INTO tbl, col_type, has_pk;
-        IF done THEN
-            LEAVE repair_loop;
-        END IF;
-
-        SET @smartdtr_sql = CONCAT(
-            'ALTER TABLE `', tbl, '` MODIFY `id` ', col_type, ' NOT NULL AUTO_INCREMENT',
-            IF(has_pk = 0, ', ADD PRIMARY KEY (`id`)', '')
-        );
-        PREPARE stmt FROM @smartdtr_sql;
-        EXECUTE stmt;
-        DEALLOCATE PREPARE stmt;
-
-        INSERT INTO smartdtr_repaired VALUES (tbl, IF(has_pk = 0, 'yes', 'no'));
-    END LOOP;
-    CLOSE cur;
-
-    SELECT * FROM smartdtr_repaired ORDER BY table_name;
-    DROP TEMPORARY TABLE smartdtr_repaired;
-END$$
-
-DELIMITER ;
-
-CALL smartdtr_repair_auto_increment();
-
-DROP PROCEDURE IF EXISTS smartdtr_repair_auto_increment;
+ALTER TABLE `admin_users` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `attendance` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `attendance_logs` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `clearance_requests` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `compensatory_time_offs` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `device_heartbeats` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `document_signatories` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `face_enrollments` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `failed_jobs` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `file_201_categories` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `holidays` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `jobs` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `leave_balances` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `leave_cards` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `leave_records` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `leave_requests_data` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `locator_requests` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `medical_certificates` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `migrations` MODIFY `id` int(10) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `personal_data_sheets` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `personnel_201_files` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `personnel_daily_status` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `position_description_forms` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `ris_items` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `ris_slips` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `rsmi_items` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `rsmi_reports` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `schedule` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `schedule_overrides` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `service_records` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `travel_orders` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `users` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
+ALTER TABLE `work_experience_sheets` MODIFY `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT;
 
 SET FOREIGN_KEY_CHECKS = 1;
