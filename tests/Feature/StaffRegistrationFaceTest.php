@@ -44,7 +44,7 @@ class StaffRegistrationFaceTest extends TestCase
         $this->post(route('staff.register'), $this->account([
             'images' => $this->captures(),
             'blink_verifications' => ['1', '1', '1'],
-        ]))->assertRedirect(route('staff.login'));
+        ]))->assertRedirect(route('login'));
 
         $staff = StaffUser::query()->where('email', 'juan.face@example.test')->first();
         $this->assertNotNull($staff);

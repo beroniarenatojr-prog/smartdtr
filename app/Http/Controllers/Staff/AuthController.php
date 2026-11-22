@@ -151,11 +151,11 @@ class AuthController extends Controller
             return response()->json([
                 'ok' => true,
                 'message' => $message,
-                'redirect' => route('staff.login'),
+                'redirect' => route('login'),
             ]);
         }
 
-        return redirect()->route('staff.login')->with('success', $message);
+        return redirect()->route('login')->with('success', $message);
     }
 
     /**
@@ -210,9 +210,10 @@ class AuthController extends Controller
         }, $value) ?? $value;
     }
 
-    public function showLogin(): View
+    public function showLogin(): RedirectResponse
     {
-        return view('staff.login');
+        // Single public Sign In page for employees and admins.
+        return redirect()->route('login');
     }
 
     public function login(Request $request): RedirectResponse

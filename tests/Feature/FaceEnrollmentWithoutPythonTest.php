@@ -38,7 +38,7 @@ class FaceEnrollmentWithoutPythonTest extends TestCase
                 UploadedFile::fake()->image('capture-3.jpg', 640, 480),
             ],
             'blink_verifications' => ['1', '1', '1'],
-        ])->assertRedirect(route('staff.login'));
+        ])->assertRedirect(route('login'));
 
         $personnel = Personnel::query()->where('name', 'Juan Perez Dela Cruz')->first();
         $this->assertNotNull($personnel);
