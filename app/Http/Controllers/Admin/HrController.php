@@ -49,11 +49,10 @@ class HrController extends Controller
             $response->with($key, $value);
         }
 
+        // Approval/rejection already succeeded — never flash email problems as a blocking error.
         if ($error = $this->notifications->lastEmailError()) {
-            return $response->with('error', $message.' The notification email failed: '.$error);
-        }
-
-        if ($recipient = $this->notifications->lastEmailRecipient()) {
+            $message .= ' (In-app notice saved; email not sent: '.$error.')';
+        } elseif ($recipient = $this->notifications->lastEmailRecipient()) {
             $message .= " Email sent to {$recipient}.";
         }
 
@@ -229,11 +228,19 @@ class HrController extends Controller
         return view('admin.hr.locator-requests', compact('requests'));
     }
 
-    public function printLocator(LocatorRequest $locatorRequest): BinaryFileResponse
+    public function printLocator(LocatorRequest $locatorRequest): BinaryFileResponse|\Illuminate\Http\RedirectResponse
     {
         abort_unless($locatorRequest->status === 'approved', 403);
 
-        return $this->travelAuthorityWord->download($locatorRequest);
+        try {
+            return $this->travelAuthorityWord->download($locatorRequest);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()
+                ->route('admin.hr.locator-requests')
+                ->with('error', 'Could not print Locator Slip: '.$e->getMessage());
+        }
     }
 
     public function approveLocator(Request $request, LocatorRequest $locatorRequest): RedirectResponse
