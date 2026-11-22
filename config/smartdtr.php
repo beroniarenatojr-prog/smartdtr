@@ -2,7 +2,12 @@
 
 return [
     'face_confidence_min' => (float) env('FACE_CONFIDENCE_MIN', 0.5),
-    'face_python_path' => env('FACE_PYTHON_PATH', base_path('.venv-face/Scripts/python.exe')),
+    'face_python_path' => env(
+        'FACE_PYTHON_PATH',
+        PHP_OS_FAMILY === 'Windows'
+            ? base_path('.venv-face/Scripts/python.exe')
+            : base_path('.venv-face/bin/python')
+    ),
     'face_enrollment_tolerance' => (float) env('FACE_ENROLLMENT_TOLERANCE', 0.55),
     'face_enrollment_conflict_tolerance' => (float) env('FACE_ENROLLMENT_CONFLICT_TOLERANCE', 0.38),
     'face_enrollment_detector' => env('FACE_ENROLLMENT_DETECTOR', 'cnn'),
