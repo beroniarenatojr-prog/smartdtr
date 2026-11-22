@@ -47,6 +47,7 @@ class DtrBlankPdfLayoutTest extends TestCase
         $this->assertStringContainsString('TOTAL :', $html);
         $this->assertStringContainsString('Aiza T Donor', $html);
         $this->assertStringContainsString('(In Charge)', $html);
-        $this->assertStringContainsString('page-wrap', $html);
+        $this->assertStringContainsString('D<br>A<br>Y', $html);
+        $this->assertEquals(2, substr_count($html, 'td class="form"'));
     }
 }
