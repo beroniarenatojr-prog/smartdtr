@@ -1184,7 +1184,7 @@ body {
 }
 
 .landing-portals {
-    @apply grid md:grid-cols-3 gap-6 max-w-5xl mx-auto;
+    @apply grid md:grid-cols-2 gap-6 max-w-4xl mx-auto;
 }
 
 .landing-portal-card {
@@ -1232,29 +1232,6 @@ body {
 
 .landing-footer-copy {
     @apply text-xs text-slate-400;
-}
-
-.pwa-install-overlay {
-    @apply fixed inset-0 z-[110] flex items-center justify-center p-4;
-    background: rgba(15, 23, 42, 0.35);
-    backdrop-filter: blur(4px);
-}
-
-.pwa-install-dialog {
-    @apply bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md border border-slate-200;
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
-}
-
-.pwa-install-title {
-    @apply text-lg font-bold text-slate-900 mb-3;
-}
-
-.pwa-install-body {
-    @apply text-sm text-slate-600 leading-relaxed mb-6;
-}
-
-.pwa-install-steps {
-    @apply list-decimal pl-5 space-y-2 m-0;
 }
 
 /* ── Confirm Modal ────────────────────────────────────────────────────── */
