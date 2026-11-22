@@ -21,31 +21,7 @@ use App\Http\Controllers\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Staff\DashboardController as StaffDashboardController;
 use App\Http\Controllers\Staff\FaceEnrollmentController as StaffFaceEnrollmentController;
 use App\Http\Controllers\Staff\File201Controller as StaffFile201Controller;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
-
-// One-shot Hostinger migrate (remove after COLUMN_OK).
-Route::get('/ops/migrate-email-verification', function () {
-    if (! hash_equals('smdtr_verify_20261122_n4Rt8Wk1', (string) request('token'))) {
-        abort(404);
-    }
-
-    $lines = [];
-    if (Schema::hasColumn('staff_users', 'email_verified_at')) {
-        $lines[] = 'COLUMN_EXISTS';
-    } else {
-        $exit = Artisan::call('migrate', [
-            '--force' => true,
-            '--path' => 'database/migrations/2026_11_22_151950_add_email_verification_to_staff_users_table.php',
-        ]);
-        $lines[] = 'MIGRATE_EXIT='.$exit;
-        $lines[] = trim(Artisan::output());
-        $lines[] = Schema::hasColumn('staff_users', 'email_verified_at') ? 'COLUMN_OK' : 'COLUMN_MISSING';
-    }
-
-    return response(implode("\n", array_filter($lines))."\n", 200, ['Content-Type' => 'text/plain; charset=utf-8']);
-});
 
 Route::get('/', function () {
     if (auth('admin')->check()) {
