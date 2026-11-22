@@ -190,5 +190,13 @@
             <p class="landing-footer-copy">&copy; {{ date('Y') }} Isabela National High School. All rights reserved.</p>
         </div>
     </footer>
+
+    <div id="pwa-install-modal" class="pwa-install-overlay" hidden>
+        <div class="pwa-install-dialog" role="dialog" aria-modal="true" aria-labelledby="pwa-install-title">
+            <h2 id="pwa-install-title" class="pwa-install-title">Install SMART-DTR</h2>
+            <div id="pwa-install-body" class="pwa-install-body"></div>
+            <button type="button" data-pwa-install-close class="btn-landing-primary w-full justify-center">Got it</button>
+        </div>
+    </div>
 </div>
 @endsection
