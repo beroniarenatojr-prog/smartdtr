@@ -12,7 +12,7 @@
         <div class="auth-logo-wrap">
             <div class="auth-logo-badge"><x-logo size="xl" class="auth-logo-img" /></div>
             <div class="auth-logo">SMART-DTR</div>
-            <p class="auth-subtitle">Create your employee account and register your face. HR will approve the registration before you can sign in.</p>
+            <p class="auth-subtitle">Create your employee account and register your face. We will email a verification code, then HR can approve your access.</p>
         </div>
 
         <form method="POST" action="{{ route('staff.register') }}" enctype="multipart/form-data" class="space-y-4" data-face-form data-face-redirect="{{ route('login') }}">

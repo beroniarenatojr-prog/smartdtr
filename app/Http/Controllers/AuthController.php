@@ -43,6 +43,14 @@ class AuthController extends Controller
         if ($this->attemptStaff($login, $password, $remember)) {
             $staff = Auth::guard('staff')->user();
 
+            if (! $staff->hasVerifiedEmail()) {
+                Auth::guard('staff')->logout();
+                $request->session()->put('email_verification_email', $staff->email);
+
+                return redirect()->route('staff.verify-email')
+                    ->withErrors(['code' => 'Verify your email with the 6-digit code before signing in.']);
+            }
+
             if (! $staff->isActive()) {
                 Auth::guard('staff')->logout();
                 $message = match ($staff->status) {

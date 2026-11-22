@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\EmailVerificationCodeMail;
 use App\Models\AdminUser;
 use App\Models\Personnel;
 use App\Models\StaffUser;
@@ -10,6 +11,7 @@ use App\Services\PythonFaceEnrollmentValidator;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Mockery\MockInterface;
 use Tests\TestCase;
@@ -38,17 +40,19 @@ class StaffRegistrationFaceTest extends TestCase
 
     public function test_registration_saves_face_samples_until_hr_approves(): void
     {
+        Mail::fake();
         Storage::fake('faces');
         $this->mockValidator();
 
         $this->post(route('staff.register'), $this->account([
             'images' => $this->captures(),
             'blink_verifications' => ['1', '1', '1'],
-        ]))->assertRedirect(route('login'));
+        ]))->assertRedirect(route('staff.verify-email'));
 
         $staff = StaffUser::query()->where('email', 'juan.face@example.test')->first();
         $this->assertNotNull($staff);
         $this->assertSame('pending', $staff->status);
+        $this->assertNull($staff->email_verified_at);
         $this->assertNotNull($staff->personnel_id);
 
         $personnel = Personnel::find($staff->personnel_id);
@@ -58,6 +62,21 @@ class StaffRegistrationFaceTest extends TestCase
             'action' => 'face.registered_with_account',
             'subject_id' => $personnel->id,
         ]);
+
+        $code = null;
+        Mail::assertSent(EmailVerificationCodeMail::class, function (EmailVerificationCodeMail $mail) use (&$code): bool {
+            $code = $mail->code;
+
+            return true;
+        });
+
+        $this->post(route('staff.verify-email'), [
+            'email' => 'juan.face@example.test',
+            'code' => $code,
+        ])->assertRedirect(route('login'));
+
+        $staff->refresh();
+        $this->assertNotNull($staff->email_verified_at);
 
         $admin = AdminUser::create([
             'username' => 'face-hr',
@@ -79,6 +98,7 @@ class StaffRegistrationFaceTest extends TestCase
 
     public function test_rejecting_registration_removes_the_pending_face_samples(): void
     {
+        Mail::fake();
         Storage::fake('faces');
         $this->mockValidator();
 
@@ -109,6 +129,7 @@ class StaffRegistrationFaceTest extends TestCase
 
     public function test_database_error_during_registration_does_not_show_sql_to_the_user(): void
     {
+        Mail::fake();
         Storage::fake('faces');
         $this->mock(FaceSampleEnrollmentService::class, function (MockInterface $mock): void {
             $mock->shouldReceive('saveThreeSamples')->once()->andThrow(new QueryException(

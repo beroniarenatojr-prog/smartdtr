@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Personnel;
 use App\Models\StaffUser;
 use App\Rules\StrongPassword;
+use App\Services\EmailVerificationService;
 use App\Services\FaceSampleEnrollmentService;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -70,6 +71,7 @@ class AuthController extends Controller
         ]);
 
         $personnelId = null;
+        $staff = null;
 
         try {
             DB::beginTransaction();
@@ -143,7 +145,19 @@ class AuthController extends Controller
             throw $e;
         }
 
-        $message = 'Account created with your face registration. Wait for HR approval before signing in. The attendance camera will recognize you after that approval.';
+        $request->session()->put('email_verification_email', $staff->email);
+
+        $mailSent = true;
+        try {
+            app(EmailVerificationService::class)->sendCode($staff->fresh());
+        } catch (\Throwable $e) {
+            report($e);
+            $mailSent = false;
+        }
+
+        $message = $mailSent
+            ? 'Account created. Enter the 6-digit code sent to your email to verify it. HR will review your registration after verification.'
+            : 'Account created, but the verification email could not be sent. Use Resend code on the next page, or contact HR.';
 
         if ($request->expectsJson()) {
             session()->flash('success', $message);
@@ -151,11 +165,81 @@ class AuthController extends Controller
             return response()->json([
                 'ok' => true,
                 'message' => $message,
-                'redirect' => route('login'),
+                'redirect' => route('staff.verify-email'),
             ]);
         }
 
-        return redirect()->route('login')->with('success', $message);
+        return redirect()->route('staff.verify-email')->with('success', $message);
+    }
+
+    public function showVerifyEmail(Request $request): View|RedirectResponse
+    {
+        $email = old('email', $request->session()->get('email_verification_email', ''));
+
+        return view('staff.verify-email', compact('email'));
+    }
+
+    public function verifyEmail(Request $request, EmailVerificationService $verification): RedirectResponse
+    {
+        $validated = $request->validate([
+            'email' => 'required|email',
+            'code' => 'required|string|size:6',
+        ], [
+            'code.size' => 'Enter the 6-digit code from your email.',
+        ]);
+
+        $email = mb_strtolower(trim($validated['email']));
+        $staff = StaffUser::query()->where('email', $email)->first();
+
+        if (! $staff) {
+            return back()->withInput()->withErrors(['email' => 'No registration found for that email.']);
+        }
+
+        if ($staff->hasVerifiedEmail()) {
+            $request->session()->forget('email_verification_email');
+
+            return redirect()->route('login')->with('success', 'Your email is already verified. Sign in after HR approves your account.');
+        }
+
+        if (! $verification->verify($staff, $validated['code'])) {
+            return back()->withInput()->withErrors(['code' => 'Invalid or expired code. Request a new one if needed.']);
+        }
+
+        $request->session()->forget('email_verification_email');
+
+        return redirect()->route('login')->with('success', 'Email verified. Wait for HR approval before signing in.');
+    }
+
+    public function resendVerificationCode(Request $request, EmailVerificationService $verification): RedirectResponse
+    {
+        $validated = $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $email = mb_strtolower(trim($validated['email']));
+        $staff = StaffUser::query()->where('email', $email)->first();
+
+        if (! $staff) {
+            return back()->withInput()->withErrors(['email' => 'No registration found for that email.']);
+        }
+
+        if ($staff->hasVerifiedEmail()) {
+            return redirect()->route('login')->with('success', 'Your email is already verified. You can sign in after HR approval.');
+        }
+
+        if (! $verification->canResend($staff)) {
+            return back()->withInput()->withErrors(['email' => 'Please wait about a minute before requesting another code.']);
+        }
+
+        try {
+            $verification->sendCode($staff);
+        } catch (RuntimeException $e) {
+            return back()->withInput()->withErrors(['email' => $e->getMessage()]);
+        }
+
+        $request->session()->put('email_verification_email', $staff->email);
+
+        return back()->with('success', 'A new verification code was sent to '.$staff->email.'.');
     }
 
     /**
@@ -228,6 +312,14 @@ class AuthController extends Controller
         }
 
         $staff = $this->staffUser();
+
+        if (! $staff->hasVerifiedEmail()) {
+            Auth::guard('staff')->logout();
+            $request->session()->put('email_verification_email', $staff->email);
+
+            return redirect()->route('staff.verify-email')
+                ->withErrors(['code' => 'Verify your email with the 6-digit code before signing in.']);
+        }
 
         if (! $staff->isActive()) {
             Auth::guard('staff')->logout();

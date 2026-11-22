@@ -31,7 +31,7 @@
                 return auth('admin')->user() ? auth('admin')->user()->unreadNotifications()->count() : 0;
             });
             $pendingStaff = $safeCount(function () {
-                return \App\Models\StaffUser::where('status', 'pending')->count();
+                return \App\Models\StaffUser::awaitingHrApproval()->count();
             });
             $pendingLeave = $safeCount(function () {
                 return \App\Models\LeaveRequest::where('status', 'pending')->count();

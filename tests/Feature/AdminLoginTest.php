@@ -50,6 +50,7 @@ class AdminLoginTest extends TestCase
             'password' => 'Password123!',
             'role' => 'employee',
             'status' => 'active',
+            'email_verified_at' => now(),
         ]);
 
         $this->post(route('login'), ['username' => 'employee@gmail.com', 'password' => 'Password123!'])
@@ -70,6 +71,7 @@ class AdminLoginTest extends TestCase
             'password' => 'Password123!',
             'role' => 'employee',
             'status' => 'pending',
+            'email_verified_at' => now(),
         ]);
 
         $this->from(route('login'))

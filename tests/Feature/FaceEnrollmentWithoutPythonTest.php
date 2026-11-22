@@ -7,6 +7,7 @@ use App\Services\FaceSampleEnrollmentService;
 use App\Services\PythonFaceEnrollmentValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Mockery\MockInterface;
 use Tests\TestCase;
@@ -17,6 +18,7 @@ class FaceEnrollmentWithoutPythonTest extends TestCase
 
     public function test_registration_saves_faces_when_python_environment_is_missing(): void
     {
+        Mail::fake();
         Storage::fake('faces');
 
         $this->mock(PythonFaceEnrollmentValidator::class, function (MockInterface $mock): void {
@@ -38,7 +40,7 @@ class FaceEnrollmentWithoutPythonTest extends TestCase
                 UploadedFile::fake()->image('capture-3.jpg', 640, 480),
             ],
             'blink_verifications' => ['1', '1', '1'],
-        ])->assertRedirect(route('login'));
+        ])->assertRedirect(route('staff.verify-email'));
 
         $personnel = Personnel::query()->where('name', 'Juan Perez Dela Cruz')->first();
         $this->assertNotNull($personnel);

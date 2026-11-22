@@ -14,6 +14,10 @@
             <p class="auth-subtitle">Sign in with your account email or admin username</p>
         </div>
 
+        @if(session('success'))
+            <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{{ session('success') }}</div>
+        @endif
+
         <form method="POST" action="{{ route('login') }}" class="space-y-5">
             @csrf
             <div class="form-group">

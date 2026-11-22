@@ -54,6 +54,9 @@ Route::get('/staff/login', [StaffAuthController::class, 'showLogin'])->name('sta
 Route::post('/staff/login', [StaffAuthController::class, 'login']);
 Route::get('/staff/register', [StaffAuthController::class, 'showRegister'])->name('staff.register');
 Route::post('/staff/register', [StaffAuthController::class, 'register']);
+Route::get('/staff/verify-email', [StaffAuthController::class, 'showVerifyEmail'])->name('staff.verify-email');
+Route::post('/staff/verify-email', [StaffAuthController::class, 'verifyEmail']);
+Route::post('/staff/verify-email/resend', [StaffAuthController::class, 'resendVerificationCode'])->name('staff.verify-email.resend');
 Route::post('/staff/logout', [StaffAuthController::class, 'logout'])->name('staff.logout');
 
 // Staff portal

@@ -20,6 +20,9 @@ class StaffUser extends Authenticatable
         'middle_name',
         'suffix',
         'email',
+        'email_verified_at',
+        'email_verification_code',
+        'email_verification_expires_at',
         'username',
         'phone',
         'password',
@@ -32,14 +35,29 @@ class StaffUser extends Authenticatable
         'reset_token_expires_at',
     ];
 
-    protected $hidden = ['password', 'reset_token'];
+    protected $hidden = ['password', 'reset_token', 'email_verification_code'];
 
     protected function casts(): array
     {
         return [
             'password' => 'hashed',
+            'email_verified_at' => 'datetime',
+            'email_verification_expires_at' => 'datetime',
             'reset_token_expires_at' => 'datetime',
         ];
+    }
+
+    public function hasVerifiedEmail(): bool
+    {
+        return $this->email_verified_at !== null;
+    }
+
+    /**
+     * Registrations HR should review (email already confirmed).
+     */
+    public function scopeAwaitingHrApproval($query)
+    {
+        return $query->where('status', 'pending')->whereNotNull('email_verified_at');
     }
 
     public function personnel(): BelongsTo

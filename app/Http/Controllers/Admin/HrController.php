@@ -77,6 +77,10 @@ class HrController extends Controller
             abort(403);
         }
 
+        if (! $staffUser->hasVerifiedEmail()) {
+            return back()->with('error', "{$staffUser->name} has not verified their email yet. Ask them to enter the code sent during Sign Up.");
+        }
+
         $validated = $request->validate([
             'personnel_id' => 'nullable|exists:personnel,id',
         ]);
