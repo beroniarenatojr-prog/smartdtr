@@ -1,11 +1,11 @@
 /* SMART-DTR service worker — enables install + light offline shell. */
-const CACHE_NAME = 'smartdtr-shell-v3';
+const CACHE_NAME = 'smartdtr-shell-v4';
 const PRECACHE_URLS = [
-  '/offline.html',
+  '/pwa/offline',
   '/images/pwa/icon-192.png',
   '/images/pwa/icon-512.png',
   '/images/pwa/apple-touch-icon.png',
-  '/manifest.webmanifest',
+  '/pwa/manifest',
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,7 +35,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Never cache authenticated API or form posts (GET-only here already).
   if (url.pathname.startsWith('/api/')) {
     return;
   }
@@ -46,14 +45,14 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => response)
-        .catch(() => caches.match('/offline.html'))
+        .catch(() => caches.match('/pwa/offline'))
     );
     return;
   }
 
   const isStatic = url.pathname.startsWith('/images/')
     || url.pathname.startsWith('/build/')
-    || url.pathname === '/manifest.webmanifest';
+    || url.pathname.startsWith('/pwa/');
 
   if (! isStatic) {
     return;

@@ -5,7 +5,7 @@
 <meta name="apple-mobile-web-app-title" content="SMART-DTR">
 <meta name="application-name" content="SMART-DTR">
 <meta name="description" content="Smart Daily Time Record for DepEd Senior High School — INHS.">
-<link rel="manifest" href="{{ route('pwa.manifest') }}">
+<link rel="manifest" href="{{ url('/pwa/manifest') }}">
 <link rel="apple-touch-icon" href="{{ asset('images/pwa/apple-touch-icon.png') }}">
 <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('images/pwa/icon-192.png') }}">
 <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('images/pwa/icon-512.png') }}">
@@ -13,7 +13,6 @@
     (function () {
         window.__smartdtrDeferredInstall = null;
 
-        // Capture early — before Alpine mounts — or the install button never gets the prompt.
         window.addEventListener('beforeinstallprompt', function (event) {
             event.preventDefault();
             window.__smartdtrDeferredInstall = event;
@@ -27,7 +26,7 @@
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
-                navigator.serviceWorker.register(@json(route('pwa.sw')), { scope: '/' }).catch(function () {});
+                navigator.serviceWorker.register(@json(url('/pwa/sw')), { scope: '/' }).catch(function () {});
             });
         }
 
@@ -59,7 +58,7 @@
                         try {
                             let event = window.__smartdtrDeferredInstall;
                             if (! event) {
-                                await new Promise((resolve) => setTimeout(resolve, 1500));
+                                await new Promise((resolve) => setTimeout(resolve, 2000));
                                 event = window.__smartdtrDeferredInstall;
                             }
 
@@ -79,7 +78,7 @@
                             if (ios) {
                                 this.hint = 'On iPhone/iPad: tap Share, then Add to Home Screen.';
                             } else {
-                                this.hint = 'Use the Install icon in the Chrome address bar (computer with down arrow), or menu ⋮ → Install app.';
+                                this.hint = 'Use the Install icon in the Chrome address bar, or menu ⋮ → Install app.';
                             }
                         } finally {
                             this.busy = false;

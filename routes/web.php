@@ -21,39 +21,32 @@ use App\Http\Controllers\Staff\AuthController as StaffAuthController;
 use App\Http\Controllers\Staff\DashboardController as StaffDashboardController;
 use App\Http\Controllers\Staff\FaceEnrollmentController as StaffFaceEnrollmentController;
 use App\Http\Controllers\Staff\File201Controller as StaffFile201Controller;
+use App\Http\Controllers\PwaController;
 use Illuminate\Support\Facades\Route;
 
-// PWA assets via Laravel routes (Hostinger public/ root files often 404).
-Route::get('/manifest.webmanifest', function () {
-    $path = resource_path('pwa/manifest.webmanifest');
-    abort_unless(is_file($path), 404);
+// PWA endpoints (plain paths — Hostinger often 404s /sw.js and *.webmanifest static files).
+Route::get('/pwa/ping', [PwaController::class, 'ping'])->name('pwa.ping');
+Route::get('/pwa/manifest', [PwaController::class, 'manifest'])->name('pwa.manifest');
+Route::get('/pwa/sw', [PwaController::class, 'serviceWorker'])->name('pwa.sw');
+Route::get('/pwa/offline', [PwaController::class, 'offline'])->name('pwa.offline');
+Route::get('/manifest.webmanifest', [PwaController::class, 'manifest']);
+Route::get('/sw.js', [PwaController::class, 'serviceWorker']);
+Route::get('/offline.html', [PwaController::class, 'offline']);
 
-    return response(file_get_contents($path), 200, [
-        'Content-Type' => 'application/manifest+json; charset=utf-8',
-        'Cache-Control' => 'no-cache',
-    ]);
-})->name('pwa.manifest');
+// One-shot: clear compiled routes/views after Hostinger deploy (self-deletes from route file? no — token gated).
+Route::get('/ops/clear-cache', function () {
+    if (! hash_equals('smdtr_pwa_20261123_clear', (string) request('token'))) {
+        abort(404);
+    }
 
-Route::get('/sw.js', function () {
-    $path = resource_path('pwa/sw.js');
-    abort_unless(is_file($path), 404);
+    try {
+        \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+    } catch (\Throwable $e) {
+        return response('FAIL '.$e->getMessage()."\n", 500, ['Content-Type' => 'text/plain']);
+    }
 
-    return response(file_get_contents($path), 200, [
-        'Content-Type' => 'application/javascript; charset=utf-8',
-        'Service-Worker-Allowed' => '/',
-        'Cache-Control' => 'no-cache',
-    ]);
-})->name('pwa.sw');
-
-Route::get('/offline.html', function () {
-    $path = resource_path('pwa/offline.html');
-    abort_unless(is_file($path), 404);
-
-    return response(file_get_contents($path), 200, [
-        'Content-Type' => 'text/html; charset=utf-8',
-        'Cache-Control' => 'no-cache',
-    ]);
-})->name('pwa.offline');
+    return response("CACHE_CLEARED\n", 200, ['Content-Type' => 'text/plain; charset=utf-8']);
+});
 
 Route::get('/', function () {
     if (auth('admin')->check()) {
