@@ -496,18 +496,21 @@ class DtrExportService
     }
 
     /**
-     * All-employee PDF: two employees on each landscape long-bond page.
+     * All-employee PDF. Each page is the blank Form 48 sheet, four copies of one employee.
      */
     public function generateBulkPdf(string $month): string
     {
         @set_time_limit(600);
         @ini_set('memory_limit', '512M');
 
-        return $this->generateBlankLayoutPdf($month, null, null, 'pair');
+        $people = Personnel::active()->orderBy('name')->get();
+        $path = storage_path('app/exports/DTR_ALL_'.Carbon::parse($month.'-01')->format('Y-m').'.pdf');
+
+        return $this->writeForm48Pdf($people, $month, $path);
     }
 
     /**
-     * One employee, two identical Form 48 copies, on landscape long bond.
+     * One employee on the blank Form 48 sheet, four copies, as a PDF.
      */
     public function generateOfficialPdf(Personnel $personnel, string $month): string
     {
@@ -523,7 +526,132 @@ class DtrExportService
             $monthCarbon->format('Y-m')
         );
 
-        return $this->generateBlankLayoutPdf($month, $pdfPath, collect([$personnel]), 'copies');
+        return $this->writeForm48Pdf(collect([$personnel]), $month, $pdfPath);
+    }
+
+    /**
+     * Stamp names, the month, and the time grid onto the Excel-printed Form 48 page.
+     *
+     * @param  \Illuminate\Support\Collection<int, Personnel>  $people
+     */
+    public function writeForm48Pdf($people, string $month, string $pdfPath): string
+    {
+        if ($people->isEmpty()) {
+            throw new RuntimeException('No active personnel found to export.');
+        }
+
+        $template = resource_path('templates/dtr-form-48.pdf');
+        if (! is_file($template)) {
+            throw new RuntimeException('Form 48 PDF template is missing.');
+        }
+
+        $monthCarbon = Carbon::parse($month.'-01');
+        $monthValue = strtoupper($monthCarbon->format('F Y'));
+        $daysInMonth = $monthCarbon->daysInMonth;
+        $verifier = DocumentSignatory::resolve('dtr_verifier')
+            ?? config('smartdtr.dtr_verifier_name', 'MARIE ROSE P. RAMOS');
+        $dayMaps = $this->buildMonthlyDayMaps($people, $month);
+
+        $outputDir = dirname($pdfPath);
+        if (! is_dir($outputDir)) {
+            mkdir($outputDir, 0755, true);
+        }
+
+        $pdf = new Fpdi('L', 'pt', [936, 612]);
+        $pdf->SetAutoPageBreak(false);
+        $pdf->setSourceFile($template);
+        $background = $pdf->importPage(1);
+
+        foreach ($people as $person) {
+            $pdf->AddPage('L', [936, 612]);
+            $pdf->useTemplate($background, 0, 0, 936, 612);
+            $dayMap = $dayMaps[$person->id] ?? $dayMaps[(int) $person->id] ?? [];
+            $this->stampForm48Page($pdf, $person->name, $monthValue, $verifier, $dayMap, $daysInMonth);
+        }
+
+        $pdf->Output('F', $pdfPath);
+
+        if (! is_file($pdfPath)) {
+            throw new RuntimeException('Failed to create the Form 48 PDF.');
+        }
+
+        return $pdfPath;
+    }
+
+    /**
+     * Positions measured from the Excel print of dtr-blank forms.xlsx on a 936×612 pt page.
+     *
+     * @param  array<int, array<string, mixed>>  $dayMap
+     */
+    protected function stampForm48Page(Fpdi $pdf, string $name, string $monthValue, string $verifier, array $dayMap, int $daysInMonth): void
+    {
+        $copies = [
+            ['nameCenter' => 140.5, 'monthX' => 90.0, 'timeX' => 55.6, 'sigX' => 40.8, 'verCenter' => 139.8],
+            ['nameCenter' => 354.0, 'monthX' => 308.0, 'timeX' => 267.9, 'sigX' => 256.9, 'verCenter' => 353.9],
+            ['nameCenter' => 568.7, 'monthX' => 523.0, 'timeX' => 483.9, 'sigX' => 469.1, 'verCenter' => 568.1],
+            ['nameCenter' => 782.3, 'monthX' => 742.0, 'timeX' => 696.1, 'sigX' => 685.1, 'verCenter' => 782.3],
+        ];
+        $timeWidth = 30.8;
+        $dayBaseline = 136.2;
+        $dayPitch = 11.8033;
+
+        $pdf->SetTextColor(0, 0, 0);
+
+        foreach ($copies as $copy) {
+            $pdf->SetFont('Helvetica', 'B', 8);
+            $this->drawCenteredOnForm($pdf, $copy['nameCenter'], 59.3, $name);
+            $this->drawCenteredOnForm($pdf, $copy['verCenter'], 577.1, $verifier);
+
+            $pdf->SetFont('Helvetica', '', 7);
+            $pdf->Text($copy['monthX'], 72.6, $monthValue);
+            $pdf->Text($copy['sigX'], 551.9, $name);
+
+            for ($day = 1; $day <= $daysInMonth; $day++) {
+                $data = $dayMap[$day] ?? [];
+                $baseline = $dayBaseline + (($day - 1) * $dayPitch);
+                $slots = [
+                    $data['am_arrival'] ?? '',
+                    $data['am_departure'] ?? '',
+                    $data['pm_arrival'] ?? '',
+                    $data['pm_departure'] ?? '',
+                    $data['ot_arrival'] ?? '',
+                    $data['ot_departure'] ?? '',
+                ];
+                $hasPunches = implode('', $slots) !== '';
+                if ($hasPunches) {
+                    foreach ($slots as $index => $value) {
+                        if ($value === '' || $value === null) {
+                            continue;
+                        }
+                        $this->drawCenteredOnForm(
+                            $pdf,
+                            $copy['timeX'] + ($timeWidth / 2) + ($index * $timeWidth),
+                            $baseline,
+                            (string) $value
+                        );
+                    }
+
+                    continue;
+                }
+
+                $label = (string) ($data['label'] ?? '');
+                if ($label !== '' && ! in_array($label, ['Saturday', 'Sunday'], true)) {
+                    $pdf->SetFont('Helvetica', '', 6);
+                    $pdf->Text($copy['timeX'], $baseline, $label);
+                    $pdf->SetFont('Helvetica', '', 7);
+                }
+            }
+        }
+    }
+
+    protected function drawCenteredOnForm(Fpdi $pdf, float $centerX, float $baseline, string $text): void
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return;
+        }
+
+        $pdf->Text($centerX - ($pdf->GetStringWidth($text) / 2), $baseline, $text);
     }
 
     /**

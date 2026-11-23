@@ -145,7 +145,7 @@ class DtrBlankPdfLayoutTest extends TestCase
         $this->assertSame('Ben Cruz', $workbook->getSheet(1)->getCell('A3')->getValue());
     }
 
-    public function test_download_all_puts_two_employees_on_one_landscape_long_bond_page(): void
+    public function test_download_all_prints_each_employee_on_the_blank_form_48_page(): void
     {
         foreach (['Ana Cruz', 'Ben Cruz', 'Cara Cruz', 'Dina Cruz', 'Eva Cruz'] as $index => $name) {
             Personnel::create([
@@ -162,7 +162,7 @@ class DtrBlankPdfLayoutTest extends TestCase
         $size = $pdf->getTemplateSize($pdf->importPage(1));
         $last = $pdf->getTemplateSize($pdf->importPage($pages));
 
-        $this->assertSame(3, $pages);
+        $this->assertSame(5, $pages);
         foreach ([$size, $last] as $pageSize) {
             $this->assertGreaterThan($pageSize['height'], $pageSize['width']);
             $this->assertEqualsWithDelta(330.2, $pageSize['width'], 2);
