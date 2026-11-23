@@ -23,19 +23,19 @@ use App\Http\Controllers\Staff\FaceEnrollmentController as StaffFaceEnrollmentCo
 use App\Http\Controllers\Staff\File201Controller as StaffFile201Controller;
 use Illuminate\Support\Facades\Route;
 
-// PWA assets via Laravel — Hostinger often 404s bare /sw.js and /manifest.webmanifest.
+// PWA assets via Laravel routes (Hostinger public/ root files often 404).
 Route::get('/manifest.webmanifest', function () {
-    $path = public_path('manifest.webmanifest');
+    $path = resource_path('pwa/manifest.webmanifest');
     abort_unless(is_file($path), 404);
 
     return response(file_get_contents($path), 200, [
         'Content-Type' => 'application/manifest+json; charset=utf-8',
-        'Cache-Control' => 'public, max-age=3600',
+        'Cache-Control' => 'no-cache',
     ]);
 })->name('pwa.manifest');
 
 Route::get('/sw.js', function () {
-    $path = public_path('sw.js');
+    $path = resource_path('pwa/sw.js');
     abort_unless(is_file($path), 404);
 
     return response(file_get_contents($path), 200, [
@@ -46,12 +46,12 @@ Route::get('/sw.js', function () {
 })->name('pwa.sw');
 
 Route::get('/offline.html', function () {
-    $path = public_path('offline.html');
+    $path = resource_path('pwa/offline.html');
     abort_unless(is_file($path), 404);
 
     return response(file_get_contents($path), 200, [
         'Content-Type' => 'text/html; charset=utf-8',
-        'Cache-Control' => 'public, max-age=3600',
+        'Cache-Control' => 'no-cache',
     ]);
 })->name('pwa.offline');
 

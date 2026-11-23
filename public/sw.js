@@ -1,5 +1,5 @@
 /* SMART-DTR service worker — enables install + light offline shell. */
-const CACHE_NAME = 'smartdtr-shell-v2';
+const CACHE_NAME = 'smartdtr-shell-v3';
 const PRECACHE_URLS = [
   '/offline.html',
   '/images/pwa/icon-192.png',
