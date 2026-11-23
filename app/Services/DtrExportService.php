@@ -67,6 +67,34 @@ class DtrExportService
             'signature_name' => 'I48',
             'verifier_name' => 'I50',
         ],
+        [
+            'name' => 'Q3',
+            'name_label' => 'Q4',
+            'month' => 'Q5',
+            'day' => 'Q',
+            'am_arrival' => 'R',
+            'am_departure' => 'S',
+            'pm_arrival' => 'T',
+            'pm_departure' => 'U',
+            'ot_arrival' => 'V',
+            'ot_departure' => 'W',
+            'signature_name' => 'Q48',
+            'verifier_name' => 'Q50',
+        ],
+        [
+            'name' => 'Y3',
+            'name_label' => 'Y4',
+            'month' => 'Y5',
+            'day' => 'Y',
+            'am_arrival' => 'Z',
+            'am_departure' => 'AA',
+            'pm_arrival' => 'AB',
+            'pm_departure' => 'AC',
+            'ot_arrival' => 'AD',
+            'ot_departure' => 'AE',
+            'signature_name' => 'Y48',
+            'verifier_name' => 'Y50',
+        ],
     ];
 
     protected int $dayRowOffset = 11;
@@ -444,8 +472,6 @@ class DtrExportService
         $sheet = $spreadsheet->getSheet(0);
         $sheet->setTitle('DTR');
         $this->fillBlankTemplateSheet($sheet, $personnel, $monthCarbon);
-        $this->clearRightHalfOfBlankTemplate($sheet);
-        $this->applyBlankTemplatePrintSetup($sheet);
 
         for ($i = $spreadsheet->getSheetCount() - 1; $i >= 1; $i--) {
             $spreadsheet->removeSheetByIndex($i);
@@ -667,30 +693,27 @@ class DtrExportService
 
         @set_time_limit(600);
 
-        $master = null;
-        $usedTitles = [];
-
-        foreach ($people as $person) {
-            $filledPath = $this->generateExcel($person, $month);
-            $book = IOFactory::load($filledPath);
-            $sheet = $book->getSheet(0);
-
-            $title = $this->uniqueSheetTitle($person, $usedTitles);
-            $usedTitles[] = mb_strtolower($title);
-            $sheet->setTitle($title);
-
-            if ($master === null) {
-                $master = $book;
-
-                continue;
-            }
-
-            $master->addExternalSheet($sheet);
-            unset($book);
+        $templatePath = $this->resolveTemplatePath();
+        $reader = IOFactory::createReader('Xlsx');
+        if ($reader instanceof XlsxReader) {
+            $reader->setEnableDrawingPassThrough(true);
+        }
+        $master = $reader->load($templatePath);
+        $blank = $master->getSheet(0);
+        $sheets = [$blank];
+        for ($i = 1, $count = $people->count(); $i < $count; $i++) {
+            $clone = clone $blank;
+            $master->addSheet($clone);
+            $sheets[] = $clone;
         }
 
-        if ($master === null) {
-            throw new RuntimeException('Could not build bulk DTR workbook.');
+        $monthCarbon = Carbon::parse($month.'-01');
+        $usedTitles = [];
+        foreach ($people->values() as $index => $person) {
+            $title = $this->uniqueSheetTitle($person, $usedTitles);
+            $usedTitles[] = mb_strtolower($title);
+            $sheets[$index]->setTitle($title);
+            $this->fillBlankTemplateSheet($sheets[$index], $person, $monthCarbon);
         }
 
         $master->setActiveSheetIndex(0);
@@ -851,12 +874,6 @@ class DtrExportService
     {
         $monthLabel = 'For the month of '.strtoupper($monthCarbon->format('F Y'));
 
-        // Match blank Form 48 header lines: title on row 6, schedule detail on row 7.
-        $hoursLine1 = 'Official hours of arrival and departure';
-        $regular = $personnel->official_hours_regular ?: '7:30-11:30 / 1:00-5:00';
-        $saturday = $personnel->official_hours_saturday ?: 'as required';
-        $hoursLine2 = 'Regular days: '.$regular.'     Saturdays: '.$saturday;
-
         $verifier = DocumentSignatory::resolve('dtr_verifier')
             ?? config('smartdtr.dtr_verifier_name', 'MARIE ROSE P. RAMOS');
         $dayMap = $this->buildMonthlyDayMap($personnel->id, $monthCarbon->format('Y-m'));
@@ -883,8 +900,6 @@ class DtrExportService
             );
             $sheet->setCellValue($cols['name_label'], '(Name)');
             $sheet->setCellValue($cols['month'], $monthLabel);
-            $sheet->setCellValue($cols['hours_line1'], $hoursLine1);
-            $sheet->setCellValue($cols['hours_line2'], $hoursLine2);
             $sheet->setCellValue($cols['signature_name'], $personnel->name);
             $sheet->setCellValue($cols['verifier_name'], $verifier);
 

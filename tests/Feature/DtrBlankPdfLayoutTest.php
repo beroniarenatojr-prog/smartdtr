@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Personnel;
 use App\Services\DtrExportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class DtrBlankPdfLayoutTest extends TestCase
@@ -98,5 +99,27 @@ class DtrBlankPdfLayoutTest extends TestCase
 
         $this->assertFileExists($path);
         $this->assertGreaterThan(5000, filesize($path));
+    }
+
+    public function test_excel_export_uses_the_blank_form_48_workbook(): void
+    {
+        $person = Personnel::create([
+            'name' => 'Aiza T Donor',
+            'role' => 'Teacher',
+            'employee_number' => 'EMP-DTR-XLSX',
+            'is_active' => true,
+        ]);
+
+        $path = app(DtrExportService::class)->generateExcel($person, '2026-11');
+        $sheet = IOFactory::load($path)->getSheet(0);
+
+        $this->assertSame('Aiza T Donor', $sheet->getCell('A3')->getValue());
+        $this->assertSame('Aiza T Donor', $sheet->getCell('Q3')->getValue());
+        $this->assertSame('Aiza T Donor', $sheet->getCell('Y3')->getValue());
+        $this->assertSame('For the month of NOVEMBER 2026', $sheet->getCell('A5')->getValue());
+        $this->assertSame('Official hours of arrival', trim((string) $sheet->getCell('A6')->getValue()));
+        $this->assertSame('and departure', trim((string) $sheet->getCell('A7')->getValue()));
+        $this->assertSame('CIVIL SERVICE FORM NO. 48', $sheet->getCell('Q1')->getValue());
+        $this->assertSame('(In Charge)', $sheet->getCell('A51')->getValue());
     }
 }
