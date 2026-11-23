@@ -12,7 +12,7 @@
         </div>
         <div class="app-card-body">
             <p class="text-sm text-slate-500 mb-4">
-                Download every employee as a PDF. Each page is the blank Form 48 sheet, with all four copies filled for that employee.
+                Download every employee as a PDF. Each page has two employees, two copies each, on the blank Form 48 sheet.
             </p>
             <form method="GET" action="{{ route('admin.dtr.bulk') }}" class="grid sm:grid-cols-[1fr_1fr] gap-4 items-end">
                 <div class="form-group mb-0">
@@ -30,7 +30,7 @@
         </div>
         <div class="app-card-body">
             <p class="text-sm text-slate-500 mb-4">
-                One employee as a PDF of the blank Form 48 sheet, with all four copies filled.
+                One employee as a PDF with two copies on the left. The right side of the page is left blank.
             </p>
             <form method="GET" action="{{ route('admin.dtr.pdf') }}" class="space-y-4">
                 <div class="form-group">

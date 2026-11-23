@@ -162,7 +162,7 @@ class DtrBlankPdfLayoutTest extends TestCase
         $size = $pdf->getTemplateSize($pdf->importPage(1));
         $last = $pdf->getTemplateSize($pdf->importPage($pages));
 
-        $this->assertSame(5, $pages);
+        $this->assertSame(3, $pages);
         foreach ([$size, $last] as $pageSize) {
             $this->assertGreaterThan($pageSize['height'], $pageSize['width']);
             $this->assertEqualsWithDelta(330.2, $pageSize['width'], 2);

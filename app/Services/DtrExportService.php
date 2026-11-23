@@ -496,7 +496,7 @@ class DtrExportService
     }
 
     /**
-     * All-employee PDF. Each page is the blank Form 48 sheet, four copies of one employee.
+     * All-employee PDF. Each page holds two employees, two Form 48 copies each.
      */
     public function generateBulkPdf(string $month): string
     {
@@ -510,7 +510,7 @@ class DtrExportService
     }
 
     /**
-     * One employee on the blank Form 48 sheet, four copies, as a PDF.
+     * One employee, two Form 48 copies on the left. The right pair is left blank.
      */
     public function generateOfficialPdf(Personnel $personnel, string $month): string
     {
@@ -562,11 +562,17 @@ class DtrExportService
         $pdf->setSourceFile($template);
         $background = $pdf->importPage(1);
 
-        foreach ($people as $person) {
+        foreach ($people->values()->chunk(2) as $pair) {
             $pdf->AddPage('L', [936, 612]);
             $pdf->useTemplate($background, 0, 0, 936, 612);
-            $dayMap = $dayMaps[$person->id] ?? $dayMaps[(int) $person->id] ?? [];
-            $this->stampForm48Page($pdf, $person->name, $monthValue, $verifier, $dayMap, $daysInMonth);
+            $employees = [];
+            foreach ($pair as $person) {
+                $employees[] = [
+                    'name' => $person->name,
+                    'dayMap' => $dayMaps[$person->id] ?? $dayMaps[(int) $person->id] ?? [],
+                ];
+            }
+            $this->stampForm48Page($pdf, $employees, $monthValue, $verifier, $daysInMonth);
         }
 
         $pdf->Output('F', $pdfPath);
@@ -579,11 +585,11 @@ class DtrExportService
     }
 
     /**
-     * Positions measured from the Excel print of dtr-blank forms.xlsx on a 936×612 pt page.
+     * Two copies of each employee. A page with one employee leaves the right pair blank.
      *
-     * @param  array<int, array<string, mixed>>  $dayMap
+     * @param  list<array{name:string,dayMap:array<int, array<string, mixed>>}>  $employees
      */
-    protected function stampForm48Page(Fpdi $pdf, string $name, string $monthValue, string $verifier, array $dayMap, int $daysInMonth): void
+    protected function stampForm48Page(Fpdi $pdf, array $employees, string $monthValue, string $verifier, int $daysInMonth): void
     {
         $copies = [
             ['nameCenter' => 140.5, 'monthX' => 90.0, 'timeX' => 55.6, 'sigX' => 40.8, 'verCenter' => 139.8],
@@ -591,55 +597,71 @@ class DtrExportService
             ['nameCenter' => 568.7, 'monthX' => 523.0, 'timeX' => 483.9, 'sigX' => 469.1, 'verCenter' => 568.1],
             ['nameCenter' => 782.3, 'monthX' => 742.0, 'timeX' => 696.1, 'sigX' => 685.1, 'verCenter' => 782.3],
         ];
+
+        if (count($employees) < 2) {
+            $pdf->SetFillColor(255, 255, 255);
+            $pdf->Rect(458, 8, 470, 596, 'F');
+        }
+
+        foreach ($employees as $index => $employee) {
+            foreach (array_slice($copies, $index * 2, 2) as $copy) {
+                $this->stampForm48Copy($pdf, $copy, $employee['name'], $monthValue, $verifier, $employee['dayMap'], $daysInMonth);
+            }
+        }
+    }
+
+    /**
+     * @param  array{nameCenter:float,monthX:float,timeX:float,sigX:float,verCenter:float}  $copy
+     * @param  array<int, array<string, mixed>>  $dayMap
+     */
+    protected function stampForm48Copy(Fpdi $pdf, array $copy, string $name, string $monthValue, string $verifier, array $dayMap, int $daysInMonth): void
+    {
         $timeWidth = 30.8;
         $dayBaseline = 136.2;
         $dayPitch = 11.8033;
 
         $pdf->SetTextColor(0, 0, 0);
+        $pdf->SetFont('Helvetica', 'B', 8);
+        $this->drawCenteredOnForm($pdf, $copy['nameCenter'], 59.3, $name);
+        $this->drawCenteredOnForm($pdf, $copy['verCenter'], 577.1, $verifier);
 
-        foreach ($copies as $copy) {
-            $pdf->SetFont('Helvetica', 'B', 8);
-            $this->drawCenteredOnForm($pdf, $copy['nameCenter'], 59.3, $name);
-            $this->drawCenteredOnForm($pdf, $copy['verCenter'], 577.1, $verifier);
+        $pdf->SetFont('Helvetica', '', 7);
+        $pdf->Text($copy['monthX'], 72.6, $monthValue);
+        $pdf->Text($copy['sigX'], 551.9, $name);
 
-            $pdf->SetFont('Helvetica', '', 7);
-            $pdf->Text($copy['monthX'], 72.6, $monthValue);
-            $pdf->Text($copy['sigX'], 551.9, $name);
-
-            for ($day = 1; $day <= $daysInMonth; $day++) {
-                $data = $dayMap[$day] ?? [];
-                $baseline = $dayBaseline + (($day - 1) * $dayPitch);
-                $slots = [
-                    $data['am_arrival'] ?? '',
-                    $data['am_departure'] ?? '',
-                    $data['pm_arrival'] ?? '',
-                    $data['pm_departure'] ?? '',
-                    $data['ot_arrival'] ?? '',
-                    $data['ot_departure'] ?? '',
-                ];
-                $hasPunches = implode('', $slots) !== '';
-                if ($hasPunches) {
-                    foreach ($slots as $index => $value) {
-                        if ($value === '' || $value === null) {
-                            continue;
-                        }
-                        $this->drawCenteredOnForm(
-                            $pdf,
-                            $copy['timeX'] + ($timeWidth / 2) + ($index * $timeWidth),
-                            $baseline,
-                            (string) $value
-                        );
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $data = $dayMap[$day] ?? [];
+            $baseline = $dayBaseline + (($day - 1) * $dayPitch);
+            $slots = [
+                $data['am_arrival'] ?? '',
+                $data['am_departure'] ?? '',
+                $data['pm_arrival'] ?? '',
+                $data['pm_departure'] ?? '',
+                $data['ot_arrival'] ?? '',
+                $data['ot_departure'] ?? '',
+            ];
+            $hasPunches = implode('', $slots) !== '';
+            if ($hasPunches) {
+                foreach ($slots as $slot => $value) {
+                    if ($value === '' || $value === null) {
+                        continue;
                     }
-
-                    continue;
+                    $this->drawCenteredOnForm(
+                        $pdf,
+                        $copy['timeX'] + ($timeWidth / 2) + ($slot * $timeWidth),
+                        $baseline,
+                        (string) $value
+                    );
                 }
 
-                $label = (string) ($data['label'] ?? '');
-                if ($label !== '' && ! in_array($label, ['Saturday', 'Sunday'], true)) {
-                    $pdf->SetFont('Helvetica', '', 6);
-                    $pdf->Text($copy['timeX'], $baseline, $label);
-                    $pdf->SetFont('Helvetica', '', 7);
-                }
+                continue;
+            }
+
+            $label = (string) ($data['label'] ?? '');
+            if ($label !== '' && ! in_array($label, ['Saturday', 'Sunday'], true)) {
+                $pdf->SetFont('Helvetica', '', 6);
+                $pdf->Text($copy['timeX'], $baseline, $label);
+                $pdf->SetFont('Helvetica', '', 7);
             }
         }
     }
