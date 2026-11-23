@@ -5,6 +5,19 @@
 @section('hide_footer', true)
 @section('title', 'SMART-DTR — DepEd Daily Time Record')
 
+{{-- Temporary Hostinger cache clear (works even with stale route cache). --}}
+@if(hash_equals('smdtr_pwa_20261123_clear', (string) request('ops_clear')))
+    @php
+        try {
+            \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+            echo 'CACHE_CLEARED';
+        } catch (\Throwable $e) {
+            echo 'FAIL '.$e->getMessage();
+        }
+        exit;
+    @endphp
+@endif
+
 @section('content')
 <div class="landing-page">
     <x-landing-background />
