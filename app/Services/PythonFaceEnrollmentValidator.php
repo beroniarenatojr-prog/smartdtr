@@ -7,10 +7,39 @@ use Symfony\Component\Process\Process;
 
 class PythonFaceEnrollmentValidator
 {
+    public function isAvailable(): bool
+    {
+        return is_file($this->pythonBinary()) && is_file($this->scriptPath());
+    }
+
+    public function pythonBinary(): string
+    {
+        $configured = trim((string) config('smartdtr.face_python_path', ''));
+        $candidates = array_values(array_unique(array_filter([
+            $configured !== '' ? $configured : null,
+            base_path('.venv-face/bin/python'),
+            base_path('.venv-face/bin/python3'),
+            base_path('.venv-face/Scripts/python.exe'),
+        ])));
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $configured !== '' ? $configured : base_path('.venv-face/Scripts/python.exe');
+    }
+
+    public function scriptPath(): string
+    {
+        return base_path('scripts/validate_face_enrollment.py');
+    }
+
     /**
      * @param  list<string>  $imagePaths
      * @param  array<int|string, string>  $personnelNames
-     * @return array{ok:bool,message:string,encodings?:int,max_distance?:float}
+     * @return array{ok:bool,message:string,encodings?:int,max_distance?:float|null}
      */
     public function validate(
         array $imagePaths,
@@ -24,11 +53,8 @@ class PythonFaceEnrollmentValidator
             throw new RuntimeException('Exactly three face captures are required.');
         }
 
-        $python = (string) config(
-            'smartdtr.face_python_path',
-            base_path('.venv-face/Scripts/python.exe')
-        );
-        $script = base_path('scripts/validate_face_enrollment.py');
+        $python = $this->pythonBinary();
+        $script = $this->scriptPath();
 
         if (! is_file($python)) {
             throw new RuntimeException('The Python face-recognition environment is not installed.');

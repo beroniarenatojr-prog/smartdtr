@@ -19,7 +19,7 @@
             <div class="form-group">
                 <label class="form-label">Role</label>
                 <input type="text" name="role" value="{{ old('role', $personnel->role) }}" required class="form-input"
-                    pattern="[A-Za-zÑñ0-9]+(?:[ ./\\-][A-Za-zÑñ0-9]+)*" title="Letters and numbers only">
+                    pattern="[A-Za-zÑñ0-9]+(?:[ .\/\-][A-Za-zÑñ0-9]+)*" title="Letters and numbers only">
             </div>
             <div class="form-group">
                 <label class="form-label">Employee Number</label>

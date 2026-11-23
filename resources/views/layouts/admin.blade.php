@@ -31,7 +31,7 @@
                 return auth('admin')->user() ? auth('admin')->user()->unreadNotifications()->count() : 0;
             });
             $pendingStaff = $safeCount(function () {
-                return \App\Models\StaffUser::where('status', 'pending')->count();
+                return \App\Models\StaffUser::awaitingHrApproval()->count();
             });
             $pendingLeave = $safeCount(function () {
                 return \App\Models\LeaveRequest::where('status', 'pending')->count();
@@ -41,6 +41,9 @@
             });
             $pendingTravel = $safeCount(function () {
                 return \App\Models\TravelOrder::where('status', 'pending')->count();
+            });
+            $pendingEmailChanges = $safeCount(function () {
+                return \App\Models\EmailChangeRequest::where('status', 'pending')->count();
             });
         @endphp
         <x-sidebar-link href="{{ route('admin.notifications') }}" label="Notifications" :badge="$adminUnread" badge-variant="danger" :active="request()->routeIs('admin.notifications*')" title="{{ $adminUnread ? $adminUnread.' unread notification'.($adminUnread === 1 ? '' : 's') : 'Notifications' }}">
@@ -59,6 +62,9 @@
         </x-sidebar-link>
         <x-sidebar-link href="{{ route('admin.hr.staff') }}" label="Employee Accounts" :badge="$pendingStaff" badge-variant="danger" :active="request()->routeIs('admin.hr.staff*')" title="{{ $pendingStaff ? $pendingStaff.' pending employee account'.($pendingStaff === 1 ? '' : 's') : 'Employee Accounts' }}">
             <x-slot:icon><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></x-slot:icon>
+        </x-sidebar-link>
+        <x-sidebar-link href="{{ route('admin.hr.email-changes') }}" label="Gmail Changes" :badge="$pendingEmailChanges" badge-variant="danger" :active="request()->routeIs('admin.hr.email-changes*')" title="{{ $pendingEmailChanges ? $pendingEmailChanges.' pending Gmail change'.($pendingEmailChanges === 1 ? '' : 's') : 'Gmail Changes' }}">
+            <x-slot:icon><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></x-slot:icon>
         </x-sidebar-link>
         <x-sidebar-link href="{{ route('admin.hr.leave-requests') }}" label="Leave Requests" :badge="$pendingLeave" badge-variant="danger" :active="request()->routeIs('admin.hr.leave-requests*')" title="{{ $pendingLeave ? $pendingLeave.' pending leave request'.($pendingLeave === 1 ? '' : 's') : 'Leave Requests' }}">
             <x-slot:icon><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></x-slot:icon>

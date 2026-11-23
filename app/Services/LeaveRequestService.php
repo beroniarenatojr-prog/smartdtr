@@ -209,7 +209,7 @@ class LeaveRequestService
             $activated,
             'Account Approved',
             'Your SMART-DTR staff account has been approved. You can now sign in and use the portal. Employee No.: '.$activated->employee_number,
-            route('staff.login')
+            route('login')
         );
 
         return $activated;

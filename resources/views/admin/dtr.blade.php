@@ -3,7 +3,7 @@
 @section('title', 'DTR Export - SMARTDTR')
 
 @section('content')
-<x-page-header title="DepEd DTR Export" subtitle="Civil Service Form No. 48 — 2 copies on the left half of landscape long bond" />
+<x-page-header title="DepEd DTR Export" subtitle="Civil Service Form No. 48 — two identical copies on landscape long bond (matches blank Form 48)" />
 
 <div class="grid md:grid-cols-2 gap-6 max-w-4xl">
     <div class="app-card md:col-span-2">
@@ -12,7 +12,7 @@
         </div>
         <div class="app-card-body">
             <p class="text-sm text-slate-500 mb-4">
-                Download all official DTRs as a protected PDF. The landscape long-bond layout contains two Form 48 copies on the left half of each page.
+                Download all official DTRs as PDF. Each page is landscape long bond with two Form 48 copies side by side, matching dtr-blank forms.xlsx.
             </p>
             <form method="GET" action="{{ route('admin.dtr.bulk') }}" class="grid sm:grid-cols-[1fr_1fr] gap-4 items-end">
                 <div class="form-group mb-0">
@@ -30,7 +30,7 @@
         </div>
         <div class="app-card-body">
             <p class="text-sm text-slate-500 mb-4">
-                Official Form 48 PDF — two copies on the left half of landscape long bond.
+                Official Form 48 PDF — two identical copies side by side on landscape long bond.
             </p>
             <form method="GET" action="{{ route('admin.dtr.pdf') }}" class="space-y-4">
                 <div class="form-group">

@@ -62,6 +62,10 @@ class FaceEnrollmentController extends Controller
                 'face.camera_enrolled',
                 "Admin captured and Python-verified three face samples for {$personnel->name}"
             );
+        } catch (\Illuminate\Database\QueryException $e) {
+            report($e);
+
+            return $this->enrollmentFailed($request, 'The face samples could not be saved because of a database error. Check storage/logs/laravel.log for details.');
         } catch (\RuntimeException $e) {
             return $this->enrollmentFailed($request, $e->getMessage());
         }

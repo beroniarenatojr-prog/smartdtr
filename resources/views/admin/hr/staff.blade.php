@@ -31,7 +31,12 @@
                     <td class="font-mono text-sm">{{ $user->employee_number ?? '—' }}</td>
                     <td>{{ $user->roleLabel() }}</td>
                     <td>{{ $user->department ?? '—' }}</td>
-                    <td><span class="badge badge-{{ $user->status === 'active' ? 'active' : ($user->status === 'pending' ? 'pending' : 'rejected') }}">{{ ucfirst($user->status) }}</span></td>
+                    <td>
+                        <span class="badge badge-{{ $user->status === 'active' ? 'active' : ($user->status === 'pending' ? 'pending' : 'rejected') }}">{{ ucfirst($user->status) }}</span>
+                        @if($user->status === 'pending' && ! $user->hasVerifiedEmail())
+                            <span class="block text-xs text-amber-600 mt-0.5">Email not verified</span>
+                        @endif
+                    </td>
                     <td>
                         {{ $user->personnel?->name ?? '—' }}
                         @if($user->personnel)
@@ -39,7 +44,7 @@
                         @endif
                     </td>
                     <td class="whitespace-nowrap">
-                        @if($user->status === 'pending')
+                        @if($user->status === 'pending' && $user->hasVerifiedEmail())
                         <div class="flex items-center gap-1.5">
                             <form method="POST" action="{{ route('admin.hr.staff.activate', $user) }}" class="flex items-center gap-1.5">
                                 @csrf
@@ -51,6 +56,14 @@
                                 </select>
                                 <button type="submit" class="btn-success btn-sm shrink-0">Approve</button>
                             </form>
+                            <form method="POST" action="{{ route('admin.hr.staff.reject', $user) }}" class="inline">
+                                @csrf
+                                <button type="submit" class="btn-danger btn-sm shrink-0">Reject</button>
+                            </form>
+                        </div>
+                        @elseif($user->status === 'pending')
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-slate-400">Waiting for email code</span>
                             <form method="POST" action="{{ route('admin.hr.staff.reject', $user) }}" class="inline">
                                 @csrf
                                 <button type="submit" class="btn-danger btn-sm shrink-0">Reject</button>

@@ -6,13 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Models\Personnel;
 use App\Models\StaffUser;
 use App\Rules\StrongPassword;
+use App\Services\EmailVerificationService;
 use App\Services\FaceSampleEnrollmentService;
+use App\Services\RegistrationSchemaRepair;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use RuntimeException;
@@ -24,7 +28,12 @@ class AuthController extends Controller
         return view('staff.register');
     }
 
-    public function register(Request $request, FaceSampleEnrollmentService $faces): RedirectResponse|JsonResponse
+    public function register(Request $request, FaceSampleEnrollmentService $faces, RegistrationSchemaRepair $schema): RedirectResponse|JsonResponse
+    {
+        return $this->attemptRegistration($request, $faces, $schema, 1);
+    }
+
+    private function attemptRegistration(Request $request, FaceSampleEnrollmentService $faces, RegistrationSchemaRepair $schema, int $attempt): RedirectResponse|JsonResponse
     {
         $request->merge([
             'last_name' => $this->formatPersonName((string) $request->input('last_name')),
@@ -69,6 +78,7 @@ class AuthController extends Controller
         ]);
 
         $personnelId = null;
+        $staff = null;
 
         try {
             DB::beginTransaction();
@@ -122,6 +132,33 @@ class AuthController extends Controller
             return $this->registrationFailed($request, [
                 $this->duplicateField($e->getMessage()) => 'This account was already registered. Please sign in instead.',
             ]);
+        } catch (QueryException $e) {
+            // QueryException is a RuntimeException; never show raw SQL to the public.
+            DB::rollBack();
+            $this->deleteRegistrationFaces($personnelId);
+
+            if ($attempt === 1 && $schema->isRepairable($e)) {
+                try {
+                    $fixed = $schema->repair();
+                } catch (\Throwable $repairError) {
+                    report($repairError);
+                    $fixed = null;
+                }
+
+                if (is_array($fixed) && $fixed !== []) {
+                    Log::warning('Registration schema was repaired after a database error. Retrying the save.', [
+                        'repaired' => $fixed,
+                    ]);
+
+                    return $this->attemptRegistration($request, $faces, $schema, 2);
+                }
+            }
+
+            report($e);
+
+            return $this->registrationFailed($request, [
+                'email' => 'Registration could not be saved because of a server problem. Please try again later or contact HR.',
+            ]);
         } catch (RuntimeException $e) {
             DB::rollBack();
             $this->deleteRegistrationFaces($personnelId);
@@ -133,7 +170,19 @@ class AuthController extends Controller
             throw $e;
         }
 
-        $message = 'Account created with your face registration. Wait for HR approval before signing in. The attendance camera will recognize you after that approval.';
+        $request->session()->put('email_verification_email', $staff->email);
+
+        $mailSent = true;
+        try {
+            app(EmailVerificationService::class)->sendCode($staff->fresh());
+        } catch (\Throwable $e) {
+            report($e);
+            $mailSent = false;
+        }
+
+        $message = $mailSent
+            ? 'Account created. Enter the 6-digit code sent to your email to verify it. HR will review your registration after verification.'
+            : 'Account created, but the verification email could not be sent. Use Resend code on the next page, or contact HR.';
 
         if ($request->expectsJson()) {
             session()->flash('success', $message);
@@ -141,11 +190,81 @@ class AuthController extends Controller
             return response()->json([
                 'ok' => true,
                 'message' => $message,
-                'redirect' => route('staff.login'),
+                'redirect' => route('staff.verify-email'),
             ]);
         }
 
-        return redirect()->route('staff.login')->with('success', $message);
+        return redirect()->route('staff.verify-email')->with('success', $message);
+    }
+
+    public function showVerifyEmail(Request $request): View|RedirectResponse
+    {
+        $email = old('email', $request->session()->get('email_verification_email', ''));
+
+        return view('staff.verify-email', compact('email'));
+    }
+
+    public function verifyEmail(Request $request, EmailVerificationService $verification): RedirectResponse
+    {
+        $validated = $request->validate([
+            'email' => 'required|email',
+            'code' => 'required|string|size:6',
+        ], [
+            'code.size' => 'Enter the 6-digit code from your email.',
+        ]);
+
+        $email = mb_strtolower(trim($validated['email']));
+        $staff = StaffUser::query()->where('email', $email)->first();
+
+        if (! $staff) {
+            return back()->withInput()->withErrors(['email' => 'No registration found for that email.']);
+        }
+
+        if ($staff->hasVerifiedEmail()) {
+            $request->session()->forget('email_verification_email');
+
+            return redirect()->route('login')->with('success', 'Your email is already verified. Sign in after HR approves your account.');
+        }
+
+        if (! $verification->verify($staff, $validated['code'])) {
+            return back()->withInput()->withErrors(['code' => 'Invalid or expired code. Request a new one if needed.']);
+        }
+
+        $request->session()->forget('email_verification_email');
+
+        return redirect()->route('login')->with('success', 'Email verified. Wait for HR approval before signing in.');
+    }
+
+    public function resendVerificationCode(Request $request, EmailVerificationService $verification): RedirectResponse
+    {
+        $validated = $request->validate([
+            'email' => 'required|email',
+        ]);
+
+        $email = mb_strtolower(trim($validated['email']));
+        $staff = StaffUser::query()->where('email', $email)->first();
+
+        if (! $staff) {
+            return back()->withInput()->withErrors(['email' => 'No registration found for that email.']);
+        }
+
+        if ($staff->hasVerifiedEmail()) {
+            return redirect()->route('login')->with('success', 'Your email is already verified. You can sign in after HR approval.');
+        }
+
+        if (! $verification->canResend($staff)) {
+            return back()->withInput()->withErrors(['email' => 'Please wait about a minute before requesting another code.']);
+        }
+
+        try {
+            $verification->sendCode($staff);
+        } catch (RuntimeException $e) {
+            return back()->withInput()->withErrors(['email' => $e->getMessage()]);
+        }
+
+        $request->session()->put('email_verification_email', $staff->email);
+
+        return back()->with('success', 'A new verification code was sent to '.$staff->email.'.');
     }
 
     /**
@@ -200,9 +319,10 @@ class AuthController extends Controller
         }, $value) ?? $value;
     }
 
-    public function showLogin(): View
+    public function showLogin(): RedirectResponse
     {
-        return view('staff.login');
+        // Single public Sign In page for employees and admins.
+        return redirect()->route('login');
     }
 
     public function login(Request $request): RedirectResponse
@@ -217,6 +337,14 @@ class AuthController extends Controller
         }
 
         $staff = $this->staffUser();
+
+        if (! $staff->hasVerifiedEmail()) {
+            Auth::guard('staff')->logout();
+            $request->session()->put('email_verification_email', $staff->email);
+
+            return redirect()->route('staff.verify-email')
+                ->withErrors(['code' => 'Verify your email with the 6-digit code before signing in.']);
+        }
 
         if (! $staff->isActive()) {
             Auth::guard('staff')->logout();

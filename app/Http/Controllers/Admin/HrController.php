@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\EmailChangeRequest;
 use App\Models\LeaveRequest;
 use App\Models\LocatorRequest;
 use App\Models\Personnel;
 use App\Models\StaffUser;
 use App\Models\TravelOrder;
 use App\Services\AuditLogService;
+use App\Services\EmailChangeRequestService;
 use App\Services\FaceSampleEnrollmentService;
 use App\Services\LeaveApplicationExportService;
 use App\Services\LeaveRequestService;
@@ -17,6 +19,7 @@ use App\Services\NotificationService;
 use App\Services\TravelAuthorityWordService;
 use App\Services\TravelOrderService;
 use App\Services\TravelOrderWordService;
+use RuntimeException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -33,7 +36,8 @@ class HrController extends Controller
         protected LeaveApplicationExportService $leaveApplicationExport,
         protected AuditLogService $auditLog,
         protected NotificationService $notifications,
-        protected FaceSampleEnrollmentService $faceSamples
+        protected FaceSampleEnrollmentService $faceSamples,
+        protected EmailChangeRequestService $emailChangeRequests
     ) {}
 
     /**
@@ -49,11 +53,10 @@ class HrController extends Controller
             $response->with($key, $value);
         }
 
+        // Approval/rejection already succeeded — never flash email problems as a blocking error.
         if ($error = $this->notifications->lastEmailError()) {
-            return $response->with('error', $message.' The notification email failed: '.$error);
-        }
-
-        if ($recipient = $this->notifications->lastEmailRecipient()) {
+            $message .= ' (In-app notice saved; email not sent: '.$error.')';
+        } elseif ($recipient = $this->notifications->lastEmailRecipient()) {
             $message .= " Email sent to {$recipient}.";
         }
 
@@ -72,6 +75,10 @@ class HrController extends Controller
     {
         if (! $this->adminUser()->canWrite()) {
             abort(403);
+        }
+
+        if (! $staffUser->hasVerifiedEmail()) {
+            return back()->with('error', "{$staffUser->name} has not verified their email yet. Ask them to enter the code sent during Sign Up.");
         }
 
         $validated = $request->validate([
@@ -229,11 +236,19 @@ class HrController extends Controller
         return view('admin.hr.locator-requests', compact('requests'));
     }
 
-    public function printLocator(LocatorRequest $locatorRequest): BinaryFileResponse
+    public function printLocator(LocatorRequest $locatorRequest): BinaryFileResponse|\Illuminate\Http\RedirectResponse
     {
         abort_unless($locatorRequest->status === 'approved', 403);
 
-        return $this->travelAuthorityWord->download($locatorRequest);
+        try {
+            return $this->travelAuthorityWord->download($locatorRequest);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()
+                ->route('admin.hr.locator-requests')
+                ->with('error', 'Could not print Locator Slip: '.$e->getMessage());
+        }
     }
 
     public function approveLocator(Request $request, LocatorRequest $locatorRequest): RedirectResponse
@@ -356,5 +371,60 @@ class HrController extends Controller
         );
 
         return $this->backWithEmailStatus('Travel order rejected.');
+    }
+
+    public function emailChangeRequests(): View
+    {
+        $requests = EmailChangeRequest::with(['staffUser', 'reviewer'])
+            ->latest()
+            ->get();
+
+        return view('admin.hr.email-changes', compact('requests'));
+    }
+
+    public function approveEmailChange(Request $request, EmailChangeRequest $emailChangeRequest): RedirectResponse
+    {
+        if (! $this->adminUser()->canWrite()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'admin_notes' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            $this->emailChangeRequests->approve(
+                $emailChangeRequest,
+                auth('admin')->id(),
+                $validated['admin_notes'] ?? null
+            );
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return $this->backWithEmailStatus('Gmail change approved. Employee login email was updated.');
+    }
+
+    public function rejectEmailChange(Request $request, EmailChangeRequest $emailChangeRequest): RedirectResponse
+    {
+        if (! $this->adminUser()->canWrite()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'admin_notes' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            $this->emailChangeRequests->reject(
+                $emailChangeRequest,
+                auth('admin')->id(),
+                $validated['admin_notes'] ?? null
+            );
+        } catch (RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return $this->backWithEmailStatus('Gmail change rejected.');
     }
 }

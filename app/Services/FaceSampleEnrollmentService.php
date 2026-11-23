@@ -51,16 +51,32 @@ class FaceSampleEnrollmentService
 
             $temporaryFiles = Storage::disk('faces')->files($temporaryDir);
             sort($temporaryFiles);
-            $verification = $this->faceValidator->validate(
-                array_map(
-                    fn (string $file): string => Storage::disk('faces')->path($file),
-                    $temporaryFiles
-                ),
-                Storage::disk('faces')->path(''),
-                $personnel->id,
-                Personnel::query()->pluck('name', 'id')->all(),
-                $personnel->name
-            );
+
+            // Hostinger / shared hosting usually has no dlib face_recognition venv.
+            // Still keep the blink-verified photos so registration works online;
+            // the school attendance camera can re-check faces later.
+            if ($this->faceValidator->isAvailable()) {
+                $verification = $this->faceValidator->validate(
+                    array_map(
+                        fn (string $file): string => Storage::disk('faces')->path($file),
+                        $temporaryFiles
+                    ),
+                    Storage::disk('faces')->path(''),
+                    $personnel->id,
+                    Personnel::query()->pluck('name', 'id')->all(),
+                    $personnel->name
+                );
+            } else {
+                Log::warning('Face enrollment saved without Python validation', [
+                    'personnel_id' => $personnel->id,
+                ]);
+                $verification = [
+                    'ok' => true,
+                    'message' => 'Face photos saved. Python face validation is not installed on this server.',
+                    'encodings' => 0,
+                    'max_distance' => null,
+                ];
+            }
 
             if (Storage::disk('faces')->exists($dir)) {
                 Storage::disk('faces')->deleteDirectory($dir);
@@ -90,9 +106,13 @@ class FaceSampleEnrollmentService
             'face_dataset_dir' => storage_path('app/known_faces/'.$personnel->id),
         ]);
 
+        $distanceNote = array_key_exists('max_distance', $verification) && $verification['max_distance'] !== null
+            ? ' (maximum distance '.$verification['max_distance'].')'
+            : ' (Python face validation skipped on this server)';
+
         $this->auditLog->log(
             $auditAction,
-            $auditDetail.' (maximum distance '.$verification['max_distance'].')',
+            $auditDetail.$distanceNote,
             $personnel
         );
 

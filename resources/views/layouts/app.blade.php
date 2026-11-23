@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'SMART-DTR')</title>
+    <x-pwa-head />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
@@ -14,9 +15,9 @@
 <body
     class="@yield('body_class', 'app-body')"
     x-data="{
-        toast: @json(session('success') ?? session('error') ?? $errors->first() ?? ''),
-        toastType: @json(session('success') ? 'success' : ((session('error') || $errors->any()) ? 'error' : '')),
-        toastExtra: @json($errors->count() > 1 ? array_slice($errors->all(), 1) : []),
+        toast: {{ \Illuminate\Support\Js::from(session('success') ?? session('error') ?? $errors->first() ?? '') }},
+        toastType: {{ \Illuminate\Support\Js::from(session('success') ? 'success' : ((session('error') || $errors->any()) ? 'error' : '')) }},
+        toastExtra: {{ \Illuminate\Support\Js::from($errors->count() > 1 ? array_slice($errors->all(), 1) : []) }},
         confirmOpen: false,
         confirmMessage: '',
         confirmType: 'primary',
@@ -132,6 +133,8 @@
     <x-confirm-modal />
 
     <x-system-alert />
+
+    <x-install-app-button />
 
     @stack('scripts')
 </body>

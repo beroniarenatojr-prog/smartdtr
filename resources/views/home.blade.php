@@ -5,6 +5,19 @@
 @section('hide_footer', true)
 @section('title', 'SMART-DTR — DepEd Daily Time Record')
 
+{{-- Temporary Hostinger cache clear (works even with stale route cache). --}}
+@if(hash_equals('smdtr_pwa_20261123_clear', (string) request('ops_clear')))
+    @php
+        try {
+            \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+            echo 'CACHE_CLEARED';
+        } catch (\Throwable $e) {
+            echo 'FAIL '.$e->getMessage();
+        }
+        exit;
+    @endphp
+@endif
+
 @section('content')
 <div class="landing-page">
     <x-landing-background />
@@ -17,11 +30,8 @@
                 <span class="landing-brand-text">SMART-DTR</span>
             </a>
             <nav class="landing-nav-links">
-                <a href="#features" class="landing-nav-link">Features</a>
-                <a href="#portals" class="landing-nav-link">Portals</a>
-                <a href="{{ route('staff.login') }}" class="landing-nav-btn landing-nav-btn-ghost">Employee Login</a>
-                <a href="{{ route('staff.register') }}" class="landing-nav-btn landing-nav-btn-ghost">Register</a>
-                <a href="{{ route('login') }}" class="landing-nav-btn landing-nav-btn-solid">Admin Login</a>
+                <a href="{{ route('login') }}" class="landing-nav-btn landing-nav-btn-ghost">Sign In</a>
+                <a href="{{ route('staff.register') }}" class="landing-nav-btn landing-nav-btn-solid">Sign Up</a>
             </nav>
         </div>
     </header>
@@ -139,29 +149,30 @@
         </div>
     </section>
 
-    {{-- Portals --}}
-    <section id="portals" class="landing-section">
+    {{-- Get started --}}
+    <section id="get-started" class="landing-section">
         <div class="landing-section-inner">
             <div class="landing-section-head">
                 <span class="landing-section-tag">Get Started</span>
-                <h2 class="landing-section-title">Choose your portal</h2>
+                <h2 class="landing-section-title">One secure sign-in for everyone</h2>
+                <p class="landing-section-desc">Employees and admins use the same Sign In page. New staff create an account with Sign Up, then wait for HR approval.</p>
             </div>
             <div class="landing-portals">
-                <a href="{{ route('staff.login') }}" class="landing-portal-card landing-portal-staff">
+                <a href="{{ route('login') }}" class="landing-portal-card landing-portal-staff">
                     <div class="landing-portal-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
                     </div>
-                    <h3 class="landing-portal-title">Employees</h3>
-                    <p class="landing-portal-desc">View attendance, request leave, and manage your profile. New users can register and wait for HR approval.</p>
-                    <span class="landing-portal-cta">Open Employee Portal →</span>
+                    <h3 class="landing-portal-title">Sign In</h3>
+                    <p class="landing-portal-desc">Use your registered email or admin username. You are taken to the correct portal automatically.</p>
+                    <span class="landing-portal-cta">Sign In →</span>
                 </a>
-                <a href="{{ route('login') }}" class="landing-portal-card landing-portal-admin">
+                <a href="{{ route('staff.register') }}" class="landing-portal-card landing-portal-admin">
                     <div class="landing-portal-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
                     </div>
-                    <h3 class="landing-portal-title">HR / Admin</h3>
-                    <p class="landing-portal-desc">Manage personnel, approve accounts & leave requests, configure schedules, and export DTR reports.</p>
-                    <span class="landing-portal-cta">Admin Sign In →</span>
+                    <h3 class="landing-portal-title">Sign Up</h3>
+                    <p class="landing-portal-desc">Create an employee account with face registration. HR reviews and activates your access.</p>
+                    <span class="landing-portal-cta">Create Account →</span>
                 </a>
             </div>
         </div>
@@ -178,5 +189,6 @@
             <p class="landing-footer-copy">&copy; {{ date('Y') }} Isabela National High School. All rights reserved.</p>
         </div>
     </footer>
+
 </div>
 @endsection

@@ -62,6 +62,10 @@ class FaceEnrollmentController extends Controller
                 'face.staff_self_enrolled',
                 "{$staff->name} registered three blink-verified face samples from the Employee Portal"
             );
+        } catch (\Illuminate\Database\QueryException $e) {
+            report($e);
+
+            return $this->enrollmentFailed($request, 'Your face samples could not be saved because of a server problem. Please try again later or contact HR.');
         } catch (\RuntimeException $e) {
             return $this->enrollmentFailed($request, $e->getMessage());
         }
