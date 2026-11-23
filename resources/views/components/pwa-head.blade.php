@@ -5,7 +5,8 @@
 <meta name="apple-mobile-web-app-title" content="SMART-DTR">
 <meta name="application-name" content="SMART-DTR">
 <meta name="description" content="Smart Daily Time Record for DepEd Senior High School — INHS.">
-<link rel="manifest" href="{{ url('/pwa/manifest') }}">
+{{-- Prefer /images/pwa/* (Hostinger serves that folder); /pwa/* Laravel routes as backup. --}}
+<link rel="manifest" href="{{ asset('images/pwa/manifest.webmanifest') }}">
 <link rel="apple-touch-icon" href="{{ asset('images/pwa/apple-touch-icon.png') }}">
 <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('images/pwa/icon-192.png') }}">
 <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('images/pwa/icon-512.png') }}">
@@ -26,7 +27,10 @@
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function () {
-                navigator.serviceWorker.register(@json(url('/pwa/sw')), { scope: '/' }).catch(function () {});
+                var swUrl = @json(asset('images/pwa/sw.js'));
+                navigator.serviceWorker.register(swUrl, { scope: '/' }).catch(function () {
+                    navigator.serviceWorker.register(@json(url('/pwa/sw')), { scope: '/' }).catch(function () {});
+                });
             });
         }
 

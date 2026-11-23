@@ -2,10 +2,12 @@
 const CACHE_NAME = 'smartdtr-shell-v4';
 const PRECACHE_URLS = [
   '/pwa/offline',
+  '/images/pwa/offline.html',
   '/images/pwa/icon-192.png',
   '/images/pwa/icon-512.png',
   '/images/pwa/apple-touch-icon.png',
   '/pwa/manifest',
+  '/images/pwa/manifest.webmanifest',
 ];
 
 self.addEventListener('install', (event) => {
