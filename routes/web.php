@@ -23,6 +23,38 @@ use App\Http\Controllers\Staff\FaceEnrollmentController as StaffFaceEnrollmentCo
 use App\Http\Controllers\Staff\File201Controller as StaffFile201Controller;
 use Illuminate\Support\Facades\Route;
 
+// PWA assets via Laravel — Hostinger often 404s bare /sw.js and /manifest.webmanifest.
+Route::get('/manifest.webmanifest', function () {
+    $path = public_path('manifest.webmanifest');
+    abort_unless(is_file($path), 404);
+
+    return response(file_get_contents($path), 200, [
+        'Content-Type' => 'application/manifest+json; charset=utf-8',
+        'Cache-Control' => 'public, max-age=3600',
+    ]);
+})->name('pwa.manifest');
+
+Route::get('/sw.js', function () {
+    $path = public_path('sw.js');
+    abort_unless(is_file($path), 404);
+
+    return response(file_get_contents($path), 200, [
+        'Content-Type' => 'application/javascript; charset=utf-8',
+        'Service-Worker-Allowed' => '/',
+        'Cache-Control' => 'no-cache',
+    ]);
+})->name('pwa.sw');
+
+Route::get('/offline.html', function () {
+    $path = public_path('offline.html');
+    abort_unless(is_file($path), 404);
+
+    return response(file_get_contents($path), 200, [
+        'Content-Type' => 'text/html; charset=utf-8',
+        'Cache-Control' => 'public, max-age=3600',
+    ]);
+})->name('pwa.offline');
+
 Route::get('/', function () {
     if (auth('admin')->check()) {
         return redirect()->route('admin.dashboard');

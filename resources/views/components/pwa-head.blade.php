@@ -5,59 +5,88 @@
 <meta name="apple-mobile-web-app-title" content="SMART-DTR">
 <meta name="application-name" content="SMART-DTR">
 <meta name="description" content="Smart Daily Time Record for DepEd Senior High School — INHS.">
-<link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
+<link rel="manifest" href="{{ route('pwa.manifest') }}">
 <link rel="apple-touch-icon" href="{{ asset('images/pwa/apple-touch-icon.png') }}">
 <link rel="icon" type="image/png" sizes="192x192" href="{{ asset('images/pwa/icon-192.png') }}">
 <link rel="icon" type="image/png" sizes="512x512" href="{{ asset('images/pwa/icon-512.png') }}">
 <script>
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-            navigator.serviceWorker.register(@json(asset('sw.js')), { scope: @json(url('/')) }).catch(function () {});
+    (function () {
+        window.__smartdtrDeferredInstall = null;
+
+        // Capture early — before Alpine mounts — or the install button never gets the prompt.
+        window.addEventListener('beforeinstallprompt', function (event) {
+            event.preventDefault();
+            window.__smartdtrDeferredInstall = event;
+            window.dispatchEvent(new CustomEvent('smartdtr:install-ready'));
         });
-    }
 
-    document.addEventListener('alpine:init', function () {
-        Alpine.data('installAppButton', function () {
-            return {
-                visible: false,
-                hint: '',
-                deferred: null,
-                init() {
-                    const installed = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-                    if (installed) {
-                        return;
-                    }
+        window.addEventListener('appinstalled', function () {
+            window.__smartdtrDeferredInstall = null;
+            window.dispatchEvent(new CustomEvent('smartdtr:installed'));
+        });
 
-                    this.visible = true;
-                    window.addEventListener('beforeinstallprompt', (event) => {
-                        event.preventDefault();
-                        this.deferred = event;
-                        this.visible = true;
-                    });
-                    window.addEventListener('appinstalled', () => {
-                        this.visible = false;
-                        this.hint = '';
-                        this.deferred = null;
-                    });
-                },
-                async install() {
-                    this.hint = '';
-                    if (this.deferred) {
-                        this.deferred.prompt();
-                        const choice = await this.deferred.userChoice;
-                        this.deferred = null;
-                        if (choice.outcome === 'accepted') {
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function () {
+                navigator.serviceWorker.register(@json(route('pwa.sw')), { scope: '/' }).catch(function () {});
+            });
+        }
+
+        document.addEventListener('alpine:init', function () {
+            Alpine.data('installAppButton', function () {
+                return {
+                    visible: true,
+                    busy: false,
+                    hint: '',
+                    init() {
+                        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
                             this.visible = false;
+                            return;
                         }
-                        return;
-                    }
 
-                    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-                    this.hint = ios
-                        ? 'Tap Share, then Add to Home Screen.'
-                        : 'Open this site in Chrome on that device, then tap download again.';
-                },
-            };
+                        window.addEventListener('smartdtr:install-ready', () => {
+                            this.hint = '';
+                            this.visible = true;
+                        });
+                        window.addEventListener('smartdtr:installed', () => {
+                            this.visible = false;
+                            this.hint = '';
+                        });
+                    },
+                    async install() {
+                        this.hint = '';
+                        this.busy = true;
+
+                        try {
+                            let event = window.__smartdtrDeferredInstall;
+                            if (! event) {
+                                await new Promise((resolve) => setTimeout(resolve, 1500));
+                                event = window.__smartdtrDeferredInstall;
+                            }
+
+                            if (event) {
+                                window.__smartdtrDeferredInstall = null;
+                                event.prompt();
+                                const choice = await event.userChoice;
+                                if (choice.outcome === 'accepted') {
+                                    this.visible = false;
+                                }
+                                return;
+                            }
+
+                            const ios = /iphone|ipad|ipod/i.test(navigator.userAgent)
+                                || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+                            if (ios) {
+                                this.hint = 'On iPhone/iPad: tap Share, then Add to Home Screen.';
+                            } else {
+                                this.hint = 'Use the Install icon in the Chrome address bar (computer with down arrow), or menu ⋮ → Install app.';
+                            }
+                        } finally {
+                            this.busy = false;
+                        }
+                    },
+                };
+            });
         });
-    });
+    })();
 </script>
