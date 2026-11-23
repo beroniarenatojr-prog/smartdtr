@@ -636,8 +636,15 @@ class DtrExportService
             for ($page = 1; $page <= $pageCount; $page++) {
                 $template = $pdf->importPage($page);
                 $size = $pdf->getTemplateSize($template);
-                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
-                $pdf->useTemplate($template);
+                $width = $size['width'];
+                $height = $size['height'];
+                if ($width < $height) {
+                    [$width, $height] = [$height, $width];
+                }
+                // Keep the joined pages landscape long bond. FPDF treats a wider
+                // size as portrait and flips it when the orientation is L.
+                $pdf->AddPage('L', [$width, $height]);
+                $pdf->useTemplate($template, 0, 0, $width, $height);
             }
         }
 

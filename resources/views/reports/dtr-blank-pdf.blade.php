@@ -5,106 +5,123 @@
     <title>DTR — {{ $monthLabel }}</title>
     <style>
         /*
-         * Civil Service Form No. 48 on landscape long bond (13 in × 8.5 in).
-         * Download All places two employees side by side. A single employee
-         * is printed as two identical copies.
+         * Same sheet as dtr-blank forms.xlsx: four Civil Service Form No. 48
+         * copies across landscape long bond (13 in × 8.5 in).
+         * Download All puts one employee on the left pair and the next on the right pair.
          */
-        @page { margin: 10px 12px; size: 13in 8.5in; }
+        @page { margin: 8px 10px; size: 13in 8.5in; }
         * { box-sizing: border-box; }
         body {
             font-family: "Times New Roman", Times, DejaVu Serif, serif;
-            font-size: 8px;
             color: #000;
             margin: 0;
             padding: 0;
         }
         .sheet { page-break-after: always; width: 100%; }
         .sheet:last-child { page-break-after: auto; }
-        .forms { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        .forms > tbody > tr > td.form {
-            width: 50%;
+        table.copies { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        table.copies > tbody > tr > td.copy {
+            width: 24.2%;
             vertical-align: top;
-            padding: 0 10px 0 0;
+            padding: 0 3px;
         }
-        .forms > tbody > tr > td.form + td.form {
-            padding: 0 0 0 10px;
-            border-left: 1px solid #000;
+        table.copies > tbody > tr > td.gap { width: 0.6%; }
+        table.copies > tbody > tr > td.cut {
+            width: 0.8%;
+            border-left: 0.8px dashed #c00000;
         }
-        .cs-no { font-size: 7px; text-transform: uppercase; margin: 0; letter-spacing: 0.3px; }
+        .cs-no { font-size: 7px; margin: 0; letter-spacing: 0.1px; }
         .title-lg {
-            font-size: 13px;
+            font-size: 11px;
             font-weight: bold;
             text-align: center;
-            margin: 2px 0 4px;
-            letter-spacing: 1px;
-            text-transform: uppercase;
+            margin: 1px 0;
+            letter-spacing: 0.4px;
         }
-        .name { font-size: 11px; font-weight: bold; text-align: center; margin: 2px 0 0; min-height: 13px; }
-        .name-sub { font-size: 7px; text-align: center; margin: 0 0 3px; }
-        .month { font-size: 8.5px; text-align: left; margin: 0 0 1px; }
-        .hours { font-size: 7.5px; margin: 0; line-height: 1.25; text-align: left; }
+        .name {
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+            margin: 2px 0 0;
+            min-height: 13px;
+            border-bottom: 0.7px solid #000;
+        }
+        .name-sub { font-size: 6.5px; text-align: center; margin: 0 0 2px; }
+        .month, .hours {
+            font-size: 7px;
+            margin: 0;
+            line-height: 1.2;
+            border-bottom: 0.6px solid #000;
+        }
         table.grid {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 4px;
+            margin-top: 2px;
             table-layout: fixed;
         }
         table.grid th, table.grid td {
-            border: 0.8px solid #000;
-            padding: 0 1px;
+            border: 0.5px solid #000;
+            padding: 0;
             text-align: center;
             vertical-align: middle;
-            font-size: 7.2px;
-            height: 11.5px;
+            font-size: 6.2px;
+            height: 13.5px;
+            line-height: 1;
         }
-        table.grid thead th { font-weight: bold; font-size: 7px; height: 12px; }
-        table.grid .day-head {
-            width: 8%;
-            font-size: 6.5px;
-            line-height: 1.05;
-            letter-spacing: 0.6px;
-        }
-        table.grid .day-num { width: 8%; font-weight: bold; font-size: 7.5px; }
-        table.grid .slot { font-size: 6.8px; }
-        table.grid .holiday { font-size: 6.2px; text-align: left; padding-left: 3px; }
+        table.grid thead th { font-weight: bold; font-size: 6px; height: 11px; }
+        table.grid .day-head { width: 8%; font-size: 6px; line-height: 1; }
+        table.grid .day-num { font-weight: bold; font-size: 6.4px; }
+        table.grid .holiday { font-size: 5.5px; text-align: left; padding-left: 1px; }
         table.grid .total-row td {
             text-align: left;
-            padding-left: 4px;
+            padding-left: 2px;
             font-weight: bold;
             height: 12px;
-            font-size: 7.5px;
+            font-size: 6.4px;
         }
-        .cert { font-size: 6.5px; margin-top: 5px; line-height: 1.3; text-align: justify; }
-        .sign { text-align: center; margin-top: 10px; font-size: 8.5px; font-weight: bold; }
-        .line { text-align: center; margin-top: 1px; font-size: 7px; }
-        .verify { font-size: 7px; margin-top: 8px; text-align: left; }
-        .incharge { text-align: center; margin-top: 10px; font-size: 8.5px; font-weight: bold; }
-        .incharge-sub { text-align: center; font-size: 7px; margin-top: 0; }
+        .cert { font-size: 6px; font-style: italic; margin-top: 4px; line-height: 1.2; text-align: justify; }
+        .sign { text-align: center; margin-top: 7px; font-size: 8px; font-weight: bold; }
+        .line { text-align: center; margin: 0 8px; font-size: 6px; border-top: 0.7px solid #000; }
+        .verify { font-size: 6.2px; margin-top: 5px; }
+        .incharge { text-align: center; margin-top: 8px; font-size: 8px; font-weight: bold; }
+        .incharge-sub { text-align: center; font-size: 6.5px; margin: 0; }
+        .blank-copy { height: 100%; }
     </style>
 </head>
 <body>
 @php
-    $pages = ($layout ?? 'pair') === 'copies'
-        ? array_map(fn ($record) => [$record, $record], $records)
-        : array_chunk($records, 2);
+    $pages = [];
+    if (($layout ?? 'pair') === 'copies') {
+        foreach ($records as $record) {
+            $pages[] = [$record, $record, $record, $record];
+        }
+    } else {
+        foreach (array_chunk($records, 2) as $pair) {
+            if (count($pair) === 1) {
+                $pages[] = [$pair[0], $pair[0], $pair[0], $pair[0]];
+            } else {
+                $pages[] = [$pair[0], $pair[0], $pair[1], $pair[1]];
+            }
+        }
+    }
 @endphp
-@foreach($pages as $pair)
+@foreach($pages as $slots)
 <div class="sheet">
-    <table class="forms">
+    <table class="copies">
         <tr>
-            @foreach($pair as $record)
+            @foreach($slots as $index => $record)
             @php
                 $p = $record['personnel'];
                 $dayMap = $record['dayMap'];
             @endphp
-            <td class="form">
+            <td class="copy">
                 <div class="cs-no">CIVIL SERVICE FORM NO. 48</div>
                 <div class="title-lg">DAILY TIME RECORD</div>
                 <div class="name">{{ $p->name }}</div>
                 <div class="name-sub">(Name)</div>
                 <div class="month">{{ $monthLabel }}</div>
-                <div class="hours">Official hours of arrival and departure</div>
-                <div class="hours">Regular days: {{ $record['regular'] }}&nbsp;&nbsp;&nbsp;Saturdays: {{ $record['saturday'] }}</div>
+                <div class="hours">Official hours of arrival</div>
+                <div class="hours">and departure</div>
 
                 <table class="grid">
                     <thead>
@@ -148,12 +165,12 @@
                                 @if($holidayOnly)
                                     <td class="holiday" colspan="6">{{ $amIn }}</td>
                                 @else
-                                    <td class="slot">{{ $amIn }}</td>
-                                    <td class="slot">{{ $amOut }}</td>
-                                    <td class="slot">{{ $pmIn }}</td>
-                                    <td class="slot">{{ $pmOut }}</td>
-                                    <td class="slot">{{ $otIn }}</td>
-                                    <td class="slot">{{ $otOut }}</td>
+                                    <td>{{ $amIn }}</td>
+                                    <td>{{ $amOut }}</td>
+                                    <td>{{ $pmIn }}</td>
+                                    <td>{{ $pmOut }}</td>
+                                    <td>{{ $otIn }}</td>
+                                    <td>{{ $otOut }}</td>
                                 @endif
                             </tr>
                         @endfor
@@ -167,15 +184,15 @@
                     I CERTIFY on my honor that the above is a true and correct report of hours of worked performed, record of which was made daily at the time of arrival at and departure from office.
                 </div>
                 <div class="sign">{{ $p->name }}</div>
-                <div class="line">______________________________</div>
+                <div class="line">&nbsp;</div>
                 <div class="verify">Verified as to the prescribed office hours.</div>
                 <div class="incharge">{{ $verifier }}</div>
                 <div class="incharge-sub">(In Charge)</div>
             </td>
-            @endforeach
-            @if(count($pair) === 1)
-            <td></td>
+            @if($index < 3)
+            <td class="{{ $index === 1 ? 'cut' : 'gap' }}"></td>
             @endif
+            @endforeach
         </tr>
     </table>
 </div>

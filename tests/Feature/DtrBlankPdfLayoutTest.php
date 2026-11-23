@@ -51,7 +51,8 @@ class DtrBlankPdfLayoutTest extends TestCase
         $this->assertStringContainsString('Aiza T Donor', $html);
         $this->assertStringContainsString('(In Charge)', $html);
         $this->assertStringContainsString('D<br>A<br>Y', $html);
-        $this->assertEquals(2, substr_count($html, 'td class="form"'));
+        $this->assertStringContainsString('Official hours of arrival', $html);
+        $this->assertEquals(4, substr_count($html, 'class="copy"'));
     }
 
     public function test_bulk_pdf_is_written_without_excel_when_conversion_is_unavailable(): void
@@ -146,7 +147,7 @@ class DtrBlankPdfLayoutTest extends TestCase
 
     public function test_download_all_puts_two_employees_on_one_landscape_long_bond_page(): void
     {
-        foreach (['Ana Cruz', 'Ben Cruz', 'Cara Cruz'] as $index => $name) {
+        foreach (['Ana Cruz', 'Ben Cruz', 'Cara Cruz', 'Dina Cruz', 'Eva Cruz'] as $index => $name) {
             Personnel::create([
                 'name' => $name,
                 'role' => 'Teacher',
@@ -159,10 +160,13 @@ class DtrBlankPdfLayoutTest extends TestCase
         $pdf = new Fpdi();
         $pages = $pdf->setSourceFile($path);
         $size = $pdf->getTemplateSize($pdf->importPage(1));
+        $last = $pdf->getTemplateSize($pdf->importPage($pages));
 
-        $this->assertSame(2, $pages);
-        $this->assertGreaterThan($size['height'], $size['width']);
-        $this->assertEqualsWithDelta(330.2, $size['width'], 2);
-        $this->assertEqualsWithDelta(215.9, $size['height'], 2);
+        $this->assertSame(3, $pages);
+        foreach ([$size, $last] as $pageSize) {
+            $this->assertGreaterThan($pageSize['height'], $pageSize['width']);
+            $this->assertEqualsWithDelta(330.2, $pageSize['width'], 2);
+            $this->assertEqualsWithDelta(215.9, $pageSize['height'], 2);
+        }
     }
 }

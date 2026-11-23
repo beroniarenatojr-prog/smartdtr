@@ -3,7 +3,7 @@
 @section('title', 'DTR Export - SMARTDTR')
 
 @section('content')
-<x-page-header title="DepEd DTR Export" subtitle="Civil Service Form No. 48 — PDF on landscape long bond, 8.5 × 13 inches" />
+<x-page-header title="DepEd DTR Export" subtitle="Civil Service Form No. 48 — same four-copy sheet as the blank form, PDF on landscape long bond (8.5 × 13 in)" />
 
 <div class="grid md:grid-cols-2 gap-6 max-w-4xl">
     <div class="app-card md:col-span-2">
@@ -12,7 +12,7 @@
         </div>
         <div class="app-card-body">
             <p class="text-sm text-slate-500 mb-4">
-                Download every employee as a PDF. Two employees are printed on each landscape long-bond page, in the same Form 48 layout.
+                Download every employee as a PDF in the blank Form 48 layout. Two employees share each landscape long-bond page: two copies on the left, two copies on the right.
             </p>
             <form method="GET" action="{{ route('admin.dtr.bulk') }}" class="grid sm:grid-cols-[1fr_1fr] gap-4 items-end">
                 <div class="form-group mb-0">
@@ -30,7 +30,7 @@
         </div>
         <div class="app-card-body">
             <p class="text-sm text-slate-500 mb-4">
-                One employee as a PDF, with two copies of the same Form 48 on landscape long bond.
+                One employee as a PDF, with all four copies of the blank Form 48 on landscape long bond.
             </p>
             <form method="GET" action="{{ route('admin.dtr.pdf') }}" class="space-y-4">
                 <div class="form-group">
