@@ -703,6 +703,9 @@ class DtrExportService
         $sheets = [$blank];
         for ($i = 1, $count = $people->count(); $i < $count; $i++) {
             $clone = clone $blank;
+            // The blank file's only sheet is already named DTR. A clone keeps that
+            // name, and Excel refuses a second sheet with the same title.
+            $clone->setTitle('Copy '.$i);
             $master->addSheet($clone);
             $sheets[] = $clone;
         }

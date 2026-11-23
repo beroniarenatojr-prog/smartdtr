@@ -122,4 +122,23 @@ class DtrBlankPdfLayoutTest extends TestCase
         $this->assertSame('CIVIL SERVICE FORM NO. 48', $sheet->getCell('Q1')->getValue());
         $this->assertSame('(In Charge)', $sheet->getCell('A51')->getValue());
     }
+
+    public function test_bulk_workbook_can_include_more_than_one_employee(): void
+    {
+        foreach (['Ana Cruz', 'Ben Cruz'] as $index => $name) {
+            Personnel::create([
+                'name' => $name,
+                'role' => 'Teacher',
+                'employee_number' => 'EMP-DTR-BULK-'.$index,
+                'is_active' => true,
+            ]);
+        }
+
+        $path = app(DtrExportService::class)->generateBulkExcel('2026-11');
+        $workbook = IOFactory::load($path);
+
+        $this->assertSame(2, $workbook->getSheetCount());
+        $this->assertSame('Ana Cruz', $workbook->getSheet(0)->getCell('A3')->getValue());
+        $this->assertSame('Ben Cruz', $workbook->getSheet(1)->getCell('A3')->getValue());
+    }
 }
