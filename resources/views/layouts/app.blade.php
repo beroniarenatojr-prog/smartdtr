@@ -134,6 +134,8 @@
 
     <x-system-alert />
 
+    <x-install-app-button />
+
     @stack('scripts')
 </body>
 </html>

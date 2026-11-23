@@ -340,6 +340,27 @@ body {
     @apply ml-auto flex items-center gap-2 sm:gap-3;
 }
 
+.install-app {
+    @apply fixed z-50 flex flex-col items-end gap-2;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.install-app-btn {
+    @apply inline-flex items-center justify-center w-12 h-12 rounded-full border-0 text-white cursor-pointer shadow-lg;
+    background-color: var(--color-brand-primary);
+}
+
+.install-app-btn:hover {
+    background-color: var(--color-primary-700);
+}
+
+.install-app-hint {
+    @apply max-w-[14rem] rounded-xl bg-white px-3 py-2 text-xs leading-snug shadow-lg;
+    color: var(--color-brand-text);
+    border: 1px solid rgba(13, 71, 161, 0.15);
+}
+
 .topbar-notify-badge {
     @apply absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center;
     background-color: var(--color-brand-accent);
