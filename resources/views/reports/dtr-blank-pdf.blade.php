@@ -5,10 +5,11 @@
     <title>DTR — {{ $monthLabel }}</title>
     <style>
         /*
-         * Mirrors dtr-blank forms.xlsx: Civil Service Form No. 48,
-         * two identical copies side-by-side on landscape Folio (long bond).
+         * Civil Service Form No. 48 on landscape long bond (13 in × 8.5 in).
+         * Download All places two employees side by side. A single employee
+         * is printed as two identical copies.
          */
-        @page { margin: 12px 14px; size: 13in 8.5in landscape; }
+        @page { margin: 10px 12px; size: 13in 8.5in; }
         * { box-sizing: border-box; }
         body {
             font-family: "Times New Roman", Times, DejaVu Serif, serif;
@@ -82,15 +83,20 @@
     </style>
 </head>
 <body>
-@foreach($records as $record)
 @php
-    $p = $record['personnel'];
-    $dayMap = $record['dayMap'];
+    $pages = ($layout ?? 'pair') === 'copies'
+        ? array_map(fn ($record) => [$record, $record], $records)
+        : array_chunk($records, 2);
 @endphp
+@foreach($pages as $pair)
 <div class="sheet">
     <table class="forms">
         <tr>
-            @for($copy = 0; $copy < 2; $copy++)
+            @foreach($pair as $record)
+            @php
+                $p = $record['personnel'];
+                $dayMap = $record['dayMap'];
+            @endphp
             <td class="form">
                 <div class="cs-no">CIVIL SERVICE FORM NO. 48</div>
                 <div class="title-lg">DAILY TIME RECORD</div>
@@ -166,7 +172,10 @@
                 <div class="incharge">{{ $verifier }}</div>
                 <div class="incharge-sub">(In Charge)</div>
             </td>
-            @endfor
+            @endforeach
+            @if(count($pair) === 1)
+            <td></td>
+            @endif
         </tr>
     </table>
 </div>

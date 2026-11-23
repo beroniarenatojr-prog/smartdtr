@@ -496,70 +496,43 @@ class DtrExportService
     }
 
     /**
-     * Combined PDF: two Form 48 copies on the left half of landscape long bond.
+     * All-employee PDF: two employees on each landscape long-bond page.
      */
     public function generateBulkPdf(string $month): string
     {
         @set_time_limit(600);
         @ini_set('memory_limit', '512M');
 
+        return $this->generateBlankLayoutPdf($month, null, null, 'pair');
+    }
+
+    /**
+     * One employee, two identical Form 48 copies, on landscape long bond.
+     */
+    public function generateOfficialPdf(Personnel $personnel, string $month): string
+    {
         $monthCarbon = Carbon::parse($month.'-01');
         $outputDir = storage_path('app/exports');
         if (! is_dir($outputDir)) {
             mkdir($outputDir, 0755, true);
         }
 
-        $stamp = $monthCarbon->format('Y-m').'_'.date('Ymd_His');
-        $pdfPath = $outputDir.DIRECTORY_SEPARATOR.sprintf('DTR_ALL_%s.pdf', $stamp);
-        $finalPdf = $outputDir.DIRECTORY_SEPARATOR.sprintf('DTR_ALL_%s.pdf', $monthCarbon->format('Y-m'));
+        $pdfPath = $outputDir.DIRECTORY_SEPARATOR.sprintf(
+            'DTR_%s_%s.pdf',
+            preg_replace('/[^A-Za-z0-9_\-]/', '_', $personnel->name),
+            $monthCarbon->format('Y-m')
+        );
 
-        // Hostinger has no Microsoft Excel. Building one workbook per employee
-        // runs past nginx and comes back as 504. Write the PDF directly.
-        if (! $this->excelPdfConversionAvailable()) {
-            return $this->generateBlankLayoutPdf($month, $finalPdf);
-        }
-
-        try {
-            // Unique workbook path avoids "Resource temporarily unavailable" locks on DTR_ALL_YYYY-MM.xlsx
-            $excelPath = $this->generateBulkExcel($month, $outputDir.DIRECTORY_SEPARATOR.sprintf('DTR_ALL_%s.xlsx', $stamp));
-            $converted = $this->convertExcelToPdf($excelPath, $pdfPath);
-
-            if (@copy($converted, $finalPdf)) {
-                return $finalPdf;
-            }
-
-            return $converted;
-        } catch (\Throwable $e) {
-            report($e);
-
-            // Last resort: DomPDF layout that mirrors blank template columns (incl. OVERTIME).
-            return $this->generateBlankLayoutPdf($month, $finalPdf);
-        }
+        return $this->generateBlankLayoutPdf($month, $pdfPath, collect([$personnel]), 'copies');
     }
 
     /**
-     * Single-employee PDF from blank template (Excel COM), else landscape 2-copy DomPDF.
-     */
-    public function generateOfficialPdf(Personnel $personnel, string $month): string
-    {
-        $excelPath = $this->generateExcel($personnel, $month);
-        $pdfPath = preg_replace('/\.xlsx$/i', '.pdf', $excelPath) ?: ($excelPath.'.pdf');
-
-        try {
-            return $this->convertExcelToPdf($excelPath, $pdfPath);
-        } catch (\Throwable $e) {
-            report($e);
-
-            return $this->generateBlankLayoutPdf($month, $pdfPath, collect([$personnel]));
-        }
-    }
-
-    /**
-     * DomPDF layout: 2 Form 48 copies on the left half of landscape Folio (13" × 8.5").
+     * Form 48 PDF on landscape long bond (13 in × 8.5 in).
      *
      * @param  \Illuminate\Support\Collection<int, Personnel>|null  $people
+     * @param  'pair'|'copies'  $layout  pair = two employees per page; copies = two copies of each employee
      */
-    public function generateBlankLayoutPdf(string $month, ?string $pdfPath = null, $people = null): string
+    public function generateBlankLayoutPdf(string $month, ?string $pdfPath = null, $people = null, string $layout = 'pair'): string
     {
         $people = $people ?? Personnel::active()->orderBy('name')->get();
         if ($people->isEmpty()) {
@@ -597,7 +570,7 @@ class DtrExportService
             }
 
             $chunkPath = $outputDir.DIRECTORY_SEPARATOR.sprintf('DTR_PART_%s_%d.pdf', $stamp, $index);
-            $this->writeBlankLayoutChunk($records, $monthLabel, $daysInMonth, $verifier, $chunkPath);
+            $this->writeBlankLayoutChunk($records, $monthLabel, $daysInMonth, $verifier, $chunkPath, $layout);
             $chunkPaths[] = $chunkPath;
         }
 
@@ -633,14 +606,16 @@ class DtrExportService
     /**
      * @param  list<array{personnel:mixed,dayMap:array,regular:string,saturday:string}>  $records
      */
-    protected function writeBlankLayoutChunk(array $records, string $monthLabel, int $daysInMonth, string $verifier, string $chunkPath): void
+    protected function writeBlankLayoutChunk(array $records, string $monthLabel, int $daysInMonth, string $verifier, string $chunkPath, string $layout = 'pair'): void
     {
+        // 13 in × 8.5 in. Pass portrait so DomPDF does not swap the sides.
         $pdf = Pdf::loadView('reports.dtr-blank-pdf', [
             'records' => $records,
             'monthLabel' => $monthLabel,
             'daysInMonth' => $daysInMonth,
             'verifier' => $verifier,
-        ])->setPaper([0, 0, 936, 612], 'landscape');
+            'layout' => $layout,
+        ])->setPaper([0, 0, 936, 612], 'portrait');
 
         $pdf->save($chunkPath);
         unset($pdf);

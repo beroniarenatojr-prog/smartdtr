@@ -6,6 +6,7 @@ use App\Models\Personnel;
 use App\Services\DtrExportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use setasign\Fpdi\Fpdi;
 use Tests\TestCase;
 
 class DtrBlankPdfLayoutTest extends TestCase
@@ -40,6 +41,7 @@ class DtrBlankPdfLayoutTest extends TestCase
             'monthLabel' => 'For the month of '.strtoupper(now()->format('F Y')),
             'daysInMonth' => now()->daysInMonth,
             'verifier' => 'MARIE ROSE P. RAMOS',
+            'layout' => 'copies',
         ])->render();
 
         $this->assertStringContainsString('CIVIL SERVICE FORM NO. 48', $html);
@@ -140,5 +142,27 @@ class DtrBlankPdfLayoutTest extends TestCase
         $this->assertSame(2, $workbook->getSheetCount());
         $this->assertSame('Ana Cruz', $workbook->getSheet(0)->getCell('A3')->getValue());
         $this->assertSame('Ben Cruz', $workbook->getSheet(1)->getCell('A3')->getValue());
+    }
+
+    public function test_download_all_puts_two_employees_on_one_landscape_long_bond_page(): void
+    {
+        foreach (['Ana Cruz', 'Ben Cruz', 'Cara Cruz'] as $index => $name) {
+            Personnel::create([
+                'name' => $name,
+                'role' => 'Teacher',
+                'employee_number' => 'EMP-DTR-PAGE-'.$index,
+                'is_active' => true,
+            ]);
+        }
+
+        $path = app(DtrExportService::class)->generateBulkPdf('2026-11');
+        $pdf = new Fpdi();
+        $pages = $pdf->setSourceFile($path);
+        $size = $pdf->getTemplateSize($pdf->importPage(1));
+
+        $this->assertSame(2, $pages);
+        $this->assertGreaterThan($size['height'], $size['width']);
+        $this->assertEqualsWithDelta(330.2, $size['width'], 2);
+        $this->assertEqualsWithDelta(215.9, $size['height'], 2);
     }
 }

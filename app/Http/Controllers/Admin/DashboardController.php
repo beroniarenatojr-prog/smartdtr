@@ -336,10 +336,10 @@ class DashboardController extends Controller
         $safeName = preg_replace('/[^A-Za-z0-9_\-]/', '_', $personnel->name);
 
         try {
-            $path = $this->dtrService->generateExcel($personnel, $month);
+            $path = $this->dtrService->generateOfficialPdf($personnel, $month);
 
-            return response()->download($path, 'DTR_'.$safeName.'_'.$month.'.xlsx', [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            return response()->download($path, 'DTR_'.$safeName.'_'.$month.'.pdf', [
+                'Content-Type' => 'application/pdf',
             ]);
         } catch (\Throwable $e) {
             report($e);
@@ -363,10 +363,10 @@ class DashboardController extends Controller
         $month = $validated['month'];
 
         try {
-            $path = $this->dtrService->generateBulkExcel($month);
+            $path = $this->dtrService->generateBulkPdf($month);
 
-            return response()->download($path, 'DTR_ALL_'.$month.'.xlsx', [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            return response()->download($path, 'DTR_ALL_'.$month.'.pdf', [
+                'Content-Type' => 'application/pdf',
             ]);
         } catch (\Throwable $e) {
             report($e);
