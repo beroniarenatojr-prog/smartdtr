@@ -49,6 +49,17 @@ Route::get('/ops/clear-cache', function () {
 });
 
 Route::get('/', function () {
+    // Temporary: clear Hostinger route/view cache so new /pwa routes load.
+    if (hash_equals('smdtr_pwa_20261123_clear', (string) request('ops_clear'))) {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+        } catch (\Throwable $e) {
+            return response('FAIL '.$e->getMessage()."\n", 500, ['Content-Type' => 'text/plain; charset=utf-8']);
+        }
+
+        return response("CACHE_CLEARED\n", 200, ['Content-Type' => 'text/plain; charset=utf-8']);
+    }
+
     if (auth('admin')->check()) {
         return redirect()->route('admin.dashboard');
     }
