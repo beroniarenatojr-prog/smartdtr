@@ -704,7 +704,7 @@ class DtrExportService
     {
         $monthLabel = 'For the month of '.strtoupper($monthCarbon->format('F Y'));
 
-        // Keep blank-template wording on line 1; put schedule on line 2 (same idea as DTR-2025-2026).
+        // Match blank Form 48 header lines: title on row 6, schedule detail on row 7.
         $hoursLine1 = 'Official hours of arrival and departure';
         $regular = $personnel->official_hours_regular ?: '7:30-11:30 / 1:00-5:00';
         $saturday = $personnel->official_hours_saturday ?: 'as required';

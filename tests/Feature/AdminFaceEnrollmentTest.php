@@ -82,6 +82,7 @@ class AdminFaceEnrollmentTest extends TestCase
         ]);
         Storage::disk('faces')->put($personnel->id.'/old.jpg', 'old face');
         $this->mock(PythonFaceEnrollmentValidator::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('isAvailable')->andReturn(true);
             $mock->shouldReceive('validate')->once()->andReturn([
                 'ok' => true,
                 'message' => 'Three compatible face encodings verified.',
@@ -125,6 +126,7 @@ class AdminFaceEnrollmentTest extends TestCase
             'is_active' => true,
         ]);
         $this->mock(PythonFaceEnrollmentValidator::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('isAvailable')->andReturn(true);
             $mock->shouldReceive('validate')->once()->andReturn([
                 'ok' => true,
                 'message' => 'Three compatible face encodings verified.',
@@ -164,6 +166,7 @@ class AdminFaceEnrollmentTest extends TestCase
             'is_active' => true,
         ]);
         $this->mock(PythonFaceEnrollmentValidator::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('isAvailable')->andReturn(true);
             $mock->shouldReceive('validate')->once()->andThrow(
                 new \RuntimeException('Capture 1 is too dark. Improve the lighting and try again.')
             );
@@ -200,6 +203,7 @@ class AdminFaceEnrollmentTest extends TestCase
             'is_active' => true,
         ]);
         $this->mock(PythonFaceEnrollmentValidator::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('isAvailable')->andReturn(true);
             $mock->shouldReceive('validate')->once()->andThrow(
                 new \RuntimeException('This face is already enrolled as Another Employee.')
             );

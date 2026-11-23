@@ -95,9 +95,7 @@ class PasswordController extends Controller
 
         $this->auditLog->log('password.reset', 'Password reset via email link', $user);
 
-        $loginRoute = $guard === 'admin' ? 'login' : 'staff.login';
-
-        return redirect()->route($loginRoute)->with('success', 'Password updated. You may sign in now.');
+        return redirect()->route('login')->with('success', 'Password updated. You may sign in now.');
     }
 
     public function showChangePassword(string $guard): View

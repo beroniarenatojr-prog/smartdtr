@@ -72,6 +72,7 @@ class StaffFaceEnrollmentTest extends TestCase
             'status' => 'active',
         ]);
         $this->mock(PythonFaceEnrollmentValidator::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('isAvailable')->andReturn(true);
             $mock->shouldReceive('validate')->once()->andReturn([
                 'ok' => true,
                 'message' => 'Three compatible face encodings verified.',

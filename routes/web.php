@@ -54,6 +54,9 @@ Route::get('/staff/login', [StaffAuthController::class, 'showLogin'])->name('sta
 Route::post('/staff/login', [StaffAuthController::class, 'login']);
 Route::get('/staff/register', [StaffAuthController::class, 'showRegister'])->name('staff.register');
 Route::post('/staff/register', [StaffAuthController::class, 'register']);
+Route::get('/staff/verify-email', [StaffAuthController::class, 'showVerifyEmail'])->name('staff.verify-email');
+Route::post('/staff/verify-email', [StaffAuthController::class, 'verifyEmail']);
+Route::post('/staff/verify-email/resend', [StaffAuthController::class, 'resendVerificationCode'])->name('staff.verify-email.resend');
 Route::post('/staff/logout', [StaffAuthController::class, 'logout'])->name('staff.logout');
 
 // Staff portal
@@ -99,6 +102,7 @@ Route::middleware('auth.staff')->prefix('staff')->name('staff.')->group(function
     Route::get('/faces', [StaffFaceEnrollmentController::class, 'show'])->name('faces');
     Route::post('/faces', [StaffFaceEnrollmentController::class, 'store'])->name('faces.store');
     Route::get('/profile', [StaffDashboardController::class, 'profile'])->name('profile');
+    Route::post('/profile/email-change', [StaffDashboardController::class, 'requestEmailChange'])->name('profile.email.request');
     Route::post('/avatar', [AvatarController::class, 'upload'])->name('avatar.upload');
     Route::delete('/avatar', [AvatarController::class, 'remove'])->name('avatar.remove');
     Route::get('/password', [PasswordController::class, 'showChangePassword'])->defaults('guard', 'staff')->name('password');
@@ -127,6 +131,9 @@ Route::middleware('auth:admin')->prefix('admin')->name('admin.')->group(function
     Route::get('/hr/staff', [HrController::class, 'staffAccounts'])->middleware('admin.permission:hr')->name('hr.staff');
     Route::post('/hr/staff/{staffUser}/activate', [HrController::class, 'activateStaff'])->middleware('admin.permission:hr')->name('hr.staff.activate');
     Route::post('/hr/staff/{staffUser}/reject', [HrController::class, 'rejectStaff'])->middleware('admin.permission:hr')->name('hr.staff.reject');
+    Route::get('/hr/email-changes', [HrController::class, 'emailChangeRequests'])->middleware('admin.permission:hr')->name('hr.email-changes');
+    Route::post('/hr/email-changes/{emailChangeRequest}/approve', [HrController::class, 'approveEmailChange'])->middleware('admin.permission:hr')->name('hr.email-changes.approve');
+    Route::post('/hr/email-changes/{emailChangeRequest}/reject', [HrController::class, 'rejectEmailChange'])->middleware('admin.permission:hr')->name('hr.email-changes.reject');
     Route::get('/hr/leave-requests', [HrController::class, 'leaveRequests'])->middleware('admin.permission:hr')->name('hr.leave-requests');
     Route::get('/leave-cards', [LeaveCardController::class, 'index'])->middleware('admin.permission:hr')->name('leave-cards.index');
     Route::get('/leave-cards/{personnel}/print', [LeaveCardController::class, 'print'])->middleware('admin.permission:hr')->name('leave-cards.print');

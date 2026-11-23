@@ -3,7 +3,7 @@
 @section('body_class', '')
 @section('main_class', '')
 @section('hide_footer')
-@section('title', 'Register - SMARTDTR')
+@section('title', 'Sign Up - SMARTDTR')
 
 @section('content')
 <div class="auth-shell py-8">
@@ -12,10 +12,10 @@
         <div class="auth-logo-wrap">
             <div class="auth-logo-badge"><x-logo size="xl" class="auth-logo-img" /></div>
             <div class="auth-logo">SMART-DTR</div>
-            <p class="auth-subtitle">Create your employee account and register your face. HR will approve the registration before you can sign in.</p>
+            <p class="auth-subtitle">Create your employee account and register your face. We will email a verification code, then HR can approve your access.</p>
         </div>
 
-        <form method="POST" action="{{ route('staff.register') }}" enctype="multipart/form-data" class="space-y-4" data-face-form data-face-redirect="{{ route('staff.login') }}">
+        <form method="POST" action="{{ route('staff.register') }}" enctype="multipart/form-data" class="space-y-4" data-face-form data-face-redirect="{{ route('login') }}">
             @csrf
             <div class="grid grid-cols-2 gap-4">
                 <div class="form-group">
@@ -116,7 +116,7 @@
         </form>
 
         <p class="mt-5 text-center text-sm text-slate-500">
-            Already registered? <a href="{{ route('staff.login') }}" class="auth-link">Sign in</a>
+            Already registered? <a href="{{ route('login') }}" class="auth-link">Sign In</a>
         </p>
     </div>
 </div>

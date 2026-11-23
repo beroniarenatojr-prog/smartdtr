@@ -12,15 +12,19 @@ use App\Models\Schedule;
 use App\Models\ScheduleOverride;
 use App\Models\TravelOrder;
 use App\Services\DailyStatusService;
+use App\Services\EmailChangeRequestService;
 use App\Services\ScheduleWeekService;
 use App\Services\LeaveApplicationExportService;
 use App\Services\LeaveBalanceService;
 use App\Services\NotificationService;
 use App\Services\TravelAuthorityWordService;
 use App\Services\TravelOrderWordService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class DashboardController extends Controller
@@ -32,7 +36,8 @@ class DashboardController extends Controller
         protected TravelAuthorityWordService $travelAuthorityWord,
         protected TravelOrderWordService $travelOrderWord,
         protected LeaveApplicationExportService $leaveApplicationExport,
-        protected ScheduleWeekService $scheduleWeek
+        protected ScheduleWeekService $scheduleWeek,
+        protected EmailChangeRequestService $emailChangeRequests
     ) {}
 
     public function index(): View
@@ -188,14 +193,22 @@ class DashboardController extends Controller
         return view('staff.locator', compact('staff', 'requests'));
     }
 
-    public function printLocator(LocatorRequest $locatorRequest): BinaryFileResponse
+    public function printLocator(LocatorRequest $locatorRequest): BinaryFileResponse|RedirectResponse
     {
         $staff = $this->staffUser();
 
         abort_unless($locatorRequest->staff_user_id === $staff->id, 403);
         abort_unless($locatorRequest->status === 'approved', 403);
 
-        return $this->travelAuthorityWord->download($locatorRequest);
+        try {
+            return $this->travelAuthorityWord->download($locatorRequest);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()
+                ->route('staff.locator')
+                ->with('error', 'Could not print Locator Slip: '.$e->getMessage());
+        }
     }
 
     public function storeLocator(Request $request): RedirectResponse
@@ -206,40 +219,56 @@ class DashboardController extends Controller
             'position_designation' => 'required|string|max:255',
             'date' => 'required|date|after_or_equal:today',
             'date_to' => 'nullable|date|after_or_equal:date',
-            'time_out' => 'required|date_format:H:i',
-            'time_in_expected' => 'required|date_format:H:i',
+            'time_out' => ['required', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
+            'time_in_expected' => ['required', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
             'destination' => 'required|string|max:255',
             'purpose' => 'required|string|max:1000',
             'nature' => 'required|in:Official Business,Official Time',
             'attachment' => 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:5120',
         ]);
 
-        $attachmentPath = null;
-        if ($request->hasFile('attachment')) {
-            $attachmentPath = $request->file('attachment')->store('locator_attachments', 'local');
+        try {
+            $attachmentPath = null;
+            if ($request->hasFile('attachment')) {
+                $attachmentPath = $request->file('attachment')->store('locator_attachments', 'local');
+                if ($attachmentPath === false) {
+                    return back()->withInput()->withErrors([
+                        'attachment' => 'Could not save the attachment on the server. Please try again or contact HR.',
+                    ]);
+                }
+            }
+
+            LocatorRequest::create([
+                'position_designation' => $validated['position_designation'],
+                'date' => $validated['date'],
+                'date_to' => $validated['date_to'] ?? $validated['date'],
+                'time_out' => $this->normalizeTime($validated['time_out']),
+                'time_in_expected' => $this->normalizeTime($validated['time_in_expected']),
+                'destination' => $validated['destination'],
+                'purpose' => $validated['purpose'],
+                'nature' => $validated['nature'],
+                'attachment_path' => $attachmentPath,
+                'staff_user_id' => $staff->id,
+                'personnel_id' => $staff->personnel_id,
+                'status' => 'pending',
+            ]);
+        } catch (QueryException $e) {
+            report($e);
+            Log::error('Locator slip save failed', ['error' => $e->getMessage()]);
+
+            return back()->withInput()->with('error', $this->databaseSaveErrorMessage($e, 'locator slip'));
         }
 
-        LocatorRequest::create([
-            'position_designation' => $validated['position_designation'],
-            'date' => $validated['date'],
-            'date_to' => $validated['date_to'] ?? $validated['date'],
-            'time_out' => $validated['time_out'].':00',
-            'time_in_expected' => $validated['time_in_expected'].':00',
-            'destination' => $validated['destination'],
-            'purpose' => $validated['purpose'],
-            'nature' => $validated['nature'],
-            'attachment_path' => $attachmentPath,
-            'staff_user_id' => $staff->id,
-            'personnel_id' => $staff->personnel_id,
-            'status' => 'pending',
-        ]);
-
-        $this->notifications->notifyAllAdmins(
-            'New Locator Slip Request',
-            "{$staff->name} requested a locator slip to {$validated['destination']}.",
-            route('admin.hr.locator-requests'),
-            'hr_officer'
-        );
+        try {
+            $this->notifications->notifyAllAdmins(
+                'New Locator Slip Request',
+                "{$staff->name} requested a locator slip to {$validated['destination']}.",
+                route('admin.hr.locator-requests'),
+                'hr_officer'
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return back()->with('success', 'Locator slip submitted. HR/Admin will review your request.');
     }
@@ -268,33 +297,49 @@ class DashboardController extends Controller
             'attachment' => 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:5120',
         ]);
 
-        $attachmentPath = null;
-        if ($request->hasFile('attachment')) {
-            $attachmentPath = $request->file('attachment')->store('travel_order_attachments', 'local');
+        try {
+            $attachmentPath = null;
+            if ($request->hasFile('attachment')) {
+                $attachmentPath = $request->file('attachment')->store('travel_order_attachments', 'local');
+                if ($attachmentPath === false) {
+                    return back()->withInput()->withErrors([
+                        'attachment' => 'Could not save the attachment on the server. Please try again or contact HR.',
+                    ]);
+                }
+            }
+
+            TravelOrder::create([
+                'staff_user_id' => $staff->id,
+                'personnel_id' => $staff->personnel_id,
+                'position_designation' => $validated['position_designation'],
+                'permanent_station' => 'Isabela National High School',
+                'purpose' => $validated['purpose'],
+                'host_of_activity' => $validated['host_of_activity'],
+                'travel_type' => $validated['travel_type'],
+                'date_from' => $validated['date_from'],
+                'date_to' => $validated['date_to'],
+                'destination' => $validated['destination'],
+                'fund_source' => $validated['fund_source'],
+                'attachment_path' => $attachmentPath,
+                'status' => 'pending',
+            ]);
+        } catch (QueryException $e) {
+            report($e);
+            Log::error('Travel order save failed', ['error' => $e->getMessage()]);
+
+            return back()->withInput()->with('error', $this->databaseSaveErrorMessage($e, 'travel order'));
         }
 
-        TravelOrder::create([
-            'staff_user_id' => $staff->id,
-            'personnel_id' => $staff->personnel_id,
-            'position_designation' => $validated['position_designation'],
-            'permanent_station' => 'Isabela National High School',
-            'purpose' => $validated['purpose'],
-            'host_of_activity' => $validated['host_of_activity'],
-            'travel_type' => $validated['travel_type'],
-            'date_from' => $validated['date_from'],
-            'date_to' => $validated['date_to'],
-            'destination' => $validated['destination'],
-            'fund_source' => $validated['fund_source'],
-            'attachment_path' => $attachmentPath,
-            'status' => 'pending',
-        ]);
-
-        $this->notifications->notifyAllAdmins(
-            'New Travel Order Request',
-            "{$staff->name} requested a travel order to {$validated['destination']}.",
-            route('admin.hr.travel-orders'),
-            'hr_officer'
-        );
+        try {
+            $this->notifications->notifyAllAdmins(
+                'New Travel Order Request',
+                "{$staff->name} requested a travel order to {$validated['destination']}.",
+                route('admin.hr.travel-orders'),
+                'hr_officer'
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return back()->with('success', 'Travel order submitted. HR/Admin will review your request.');
     }
@@ -452,7 +497,46 @@ class DashboardController extends Controller
         $leaveCredits = $staff->personnel
             ? $this->leaveBalanceService->remaining($staff->personnel)
             : null;
+        $pendingEmailChange = $staff->emailChangeRequests()->pending()->latest()->first();
+        $recentEmailChanges = $staff->emailChangeRequests()->latest()->limit(5)->get();
 
-        return view('staff.profile', compact('staff', 'leaveCredits'));
+        return view('staff.profile', compact('staff', 'leaveCredits', 'pendingEmailChange', 'recentEmailChanges'));
+    }
+
+    public function requestEmailChange(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'new_email' => ['required', 'email:rfc', 'max:255', 'confirmed'],
+            'new_email_confirmation' => ['required', 'email:rfc', 'max:255'],
+        ], [
+            'new_email.confirmed' => 'The new Gmail confirmation does not match.',
+        ]);
+
+        try {
+            $this->emailChangeRequests->request(
+                $this->staffUser(),
+                $validated['new_email']
+            );
+        } catch (RuntimeException $e) {
+            return back()->withErrors(['new_email' => $e->getMessage()])->withInput();
+        }
+
+        return redirect()
+            ->route('staff.profile')
+            ->with('success', 'Gmail change submitted. Keep using your current email until HR approves the request.');
+    }
+
+    protected function normalizeTime(string $time): string
+    {
+        return strlen($time) === 5 ? $time.':00' : $time;
+    }
+
+    protected function databaseSaveErrorMessage(QueryException $e, string $label): string
+    {
+        if (str_contains($e->getMessage(), "Field 'id' doesn't have a default value")) {
+            return "Your {$label} could not be saved because the database id column is missing AUTO_INCREMENT. Run database/repair-auto-increment.sql in phpMyAdmin, then try again.";
+        }
+
+        return "Your {$label} could not be saved because of a server problem. Please try again later or contact HR.";
     }
 }

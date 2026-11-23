@@ -120,7 +120,62 @@ class LeaveApplicationExportService
         $excelPath = $this->generateExcel($request);
         $pdfPath = preg_replace('/\.xlsx$/i', '.pdf', $excelPath) ?: ($excelPath.'.pdf');
 
-        return $this->convertExcelToPdf($excelPath, $pdfPath);
+        try {
+            return $this->convertExcelToPdf($excelPath, $pdfPath);
+        } catch (\Throwable $e) {
+            report($e);
+
+            // Hostinger / servers without Excel COM — print-faithful DomPDF Form 6.
+            return $this->generateDomPdf($request, $pdfPath);
+        }
+    }
+
+    /**
+     * CS Form No. 6 layout used when Excel-to-PDF is unavailable.
+     */
+    public function generateDomPdf(LeaveRequest $request, ?string $pdfPath = null): string
+    {
+        $request->loadMissing(['staffUser', 'personnel', 'reviewer']);
+        $staff = $request->staffUser;
+        $parts = $staff?->formNameParts() ?? $this->splitName($staff->name ?? '');
+        $office = $request->office_department
+            ?: ($staff->department ?: 'Isabela National High School');
+        $position = $request->position
+            ?: ($staff->department ?: ($staff->personnel?->role ?? $staff->roleLabel()));
+        $longLeave = $request->dayCount() >= 60;
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('reports.leave-form6-pdf', [
+            'request' => $request,
+            'staff' => $staff,
+            'parts' => $parts,
+            'office' => $office,
+            'position' => $position,
+            'salary' => $request->salary ?: '',
+            'filingDate' => ($request->created_at ?? now())->format('F d, Y'),
+            'details' => trim((string) ($request->leave_details ?: $request->reason)),
+            'longLeave' => $longLeave,
+            'schoolHead' => DocumentSignatory::resolve('school_head') ?? 'MARIE ROSE P. RAMOS',
+            'assistantSds' => DocumentSignatory::resolve('assistant_sds') ?? 'CHERYL R. RAMIRO, PhD, CESO VI',
+            'sds' => DocumentSignatory::resolve('schools_division_superintendent') ?? 'EDUARDO C. ESCORPISO, JR., EdD, CESO V',
+            'leaveTypeRows' => $this->leaveTypeRows,
+        ])->setPaper('legal', 'portrait');
+
+        $dir = storage_path('app/exports');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $pdfPath ??= $dir.DIRECTORY_SEPARATOR.sprintf(
+            'Application_for_Leave_%s.pdf',
+            preg_replace('/[^A-Za-z0-9_\-]/', '_', $this->exportName($request))
+        );
+        $pdf->save($pdfPath);
+
+        if (! is_file($pdfPath)) {
+            throw new RuntimeException('Failed to create Application for Leave PDF.');
+        }
+
+        return $pdfPath;
     }
 
     public function convertExcelToPdf(string $excelPath, ?string $pdfPath = null): string
@@ -193,9 +248,14 @@ class LeaveApplicationExportService
             '4.   POSITION  '.$position.($salary !== '' ? '     5.  SALARY  '.$salary : '     5.  SALARY  _______________')
         );
 
-        // Clear previous check marks then mark selected type (column B only).
+        // Official FORM 6 / Application for Leave: leave-type boxes are in column C
+        // (Others stays on B39). Clear then mark the selected type.
         foreach (array_unique(array_values($this->leaveTypeRows)) as $row) {
-            $sheet->setCellValue('B'.$row, $row === 39 ? 'Others:  ' : '');
+            if ($row === 39) {
+                $sheet->setCellValue('B39', 'Others:  ');
+            } else {
+                $sheet->setCellValue('C'.$row, '☐');
+            }
         }
 
         $typeKey = $request->leave_type;
@@ -206,7 +266,7 @@ class LeaveApplicationExportService
                 ? ($request->leave_details ?: $request->reason)
                 : $typeKey);
         } else {
-            $sheet->setCellValue('B'.$row, '☑');
+            $sheet->setCellValue('C'.$row, '☑');
         }
 
         $details = trim((string) ($request->leave_details ?: $request->reason));

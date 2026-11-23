@@ -24,7 +24,7 @@
         </form>
 
         <p class="mt-5 text-center text-sm text-slate-500">
-            <a href="{{ $guard === 'admin' ? route('login') : route('staff.login') }}" class="auth-link">← Back to login</a>
+            <a href="{{ route('login') }}" class="auth-link">← Back to Sign In</a>
         </p>
     </div>
 </div>

@@ -15,7 +15,7 @@ class StaffAuthenticate
                 return response()->json(['error' => 'Unauthenticated'], 401);
             }
 
-            return redirect()->route('staff.login');
+            return redirect()->route('login');
         }
 
         /** @var \App\Models\StaffUser $staff */
@@ -24,7 +24,7 @@ class StaffAuthenticate
         if (! $staff->isActive()) {
             auth('staff')->logout();
 
-            return redirect()->route('staff.login')
+            return redirect()->route('login')
                 ->withErrors(['username' => 'Your account is not active.']);
         }
 

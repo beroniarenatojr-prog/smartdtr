@@ -119,13 +119,48 @@ class NotificationService
         $this->lastEmailRecipient = null;
     }
 
+    /**
+     * True when SMTP has real credentials (not blank / example placeholders).
+     */
+    protected function mailIsConfigured(): bool
+    {
+        if (config('mail.default') !== 'smtp') {
+            return true;
+        }
+
+        $username = strtolower(trim((string) config('mail.mailers.smtp.username')));
+        $password = trim((string) config('mail.mailers.smtp.password'));
+
+        if ($username === '' || $password === '') {
+            return false;
+        }
+
+        $placeholderUsers = [
+            'your@gmail.com',
+            'example@gmail.com',
+            'null',
+        ];
+        $placeholderPasswords = [
+            'your-gmail-app-password',
+            'password',
+            'secret',
+            'null',
+        ];
+
+        if (in_array($username, $placeholderUsers, true) || in_array(strtolower($password), $placeholderPasswords, true)) {
+            return false;
+        }
+
+        return true;
+    }
+
     protected function sendEmail(string $email, string $title, string $message, ?string $url): bool
     {
         $this->resetEmailState();
 
-        if (config('mail.default') === 'smtp' && ! config('mail.mailers.smtp.username')) {
-            $this->lastEmailError = 'Email is not configured yet (MAIL_USERNAME and MAIL_PASSWORD are empty in .env).';
-            Log::warning('Notification email skipped: SMTP credentials missing', ['email' => $email]);
+        if (! $this->mailIsConfigured()) {
+            $this->lastEmailError = 'Email is not configured yet. Set a real Gmail address and App Password in the server .env (MAIL_USERNAME / MAIL_PASSWORD).';
+            Log::warning('Notification email skipped: SMTP credentials missing or still placeholders', ['email' => $email]);
             $this->auditLog->log('email.skipped', "Email to {$email} skipped — \"{$title}\" (mail not configured)");
 
             return false;
@@ -159,9 +194,9 @@ class NotificationService
         ?string $url,
         ?string $adminNotes
     ): bool {
-        if (config('mail.default') === 'smtp' && ! config('mail.mailers.smtp.username')) {
-            $this->lastEmailError = 'Email is not configured yet (MAIL_USERNAME and MAIL_PASSWORD are empty in .env).';
-            Log::warning('Letter decision email skipped: SMTP credentials missing', ['email' => $email]);
+        if (! $this->mailIsConfigured()) {
+            $this->lastEmailError = 'Email is not configured yet. Set a real Gmail address and App Password in the server .env (MAIL_USERNAME / MAIL_PASSWORD).';
+            Log::warning('Letter decision email skipped: SMTP credentials missing or still placeholders', ['email' => $email]);
             $this->auditLog->log('email.skipped', "Email to {$email} skipped — {$letterType} {$status} (mail not configured)");
 
             return false;
