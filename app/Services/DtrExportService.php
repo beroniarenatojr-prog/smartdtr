@@ -152,15 +152,38 @@ class DtrExportService
      */
     public function buildMonthlyDayMap(int $personnelId, string $month): array
     {
+        return $this->buildMonthlyDayMaps([['id' => $personnelId]], $month)[$personnelId];
+    }
+
+    /**
+     * One set of queries for every person, so a full-staff DTR finishes before the host times out.
+     *
+     * @param  iterable<int, mixed>  $people
+     * @return array<int, array<int, array{am_arrival:?string,am_departure:?string,pm_arrival:?string,pm_departure:?string,ot_arrival:?string,ot_departure:?string,label:?string}>>
+     */
+    public function buildMonthlyDayMaps(iterable $people, string $month): array
+    {
+        $ids = [];
+        foreach ($people as $person) {
+            $id = (int) (is_array($person) ? $person['id'] : $person->id);
+            $ids[$id] = $id;
+        }
+        $ids = array_values($ids);
+        if ($ids === []) {
+            return [];
+        }
+
         $start = Carbon::parse($month.'-01')->startOfMonth();
         $end = $start->copy()->endOfMonth();
         $daysInMonth = $start->daysInMonth;
+        $from = $start->toDateString();
+        $to = $end->toDateString();
 
         $holidays = [];
         if (class_exists(Holiday::class)) {
             try {
                 $holidays = Holiday::query()
-                    ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+                    ->whereBetween('date', [$from, $to])
                     ->get()
                     ->keyBy(fn ($h) => Carbon::parse($h->date)->day)
                     ->all();
@@ -169,62 +192,104 @@ class DtrExportService
             }
         }
 
-        $dayMap = [];
-        for ($d = 1; $d <= $daysInMonth; $d++) {
-            $date = $start->copy()->day($d);
-            $label = null;
-
-            if (isset($holidays[$d])) {
-                $name = strtoupper((string) ($holidays[$d]->name ?? 'HOLIDAY'));
-                $label = str_contains($name, 'HOLIDAY') ? $name : $name.' (HOLIDAY)';
-            }
-            // Do not auto-fill Saturday/Sunday — teachers may time in on weekends.
-
-            $dayMap[$d] = [
-                'am_arrival' => null,
-                'am_departure' => null,
-                'pm_arrival' => null,
-                'pm_departure' => null,
-                'ot_arrival' => null,
-                'ot_departure' => null,
-                'label' => $label,
-            ];
-        }
-
-        $logs = AttendanceLog::where('personnel_id', $personnelId)
-            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+        $logsByPerson = AttendanceLog::whereIn('personnel_id', $ids)
+            ->whereBetween('date', [$from, $to])
             ->orderBy('date')
             ->orderBy('time')
             ->get()
-            ->groupBy(fn ($log) => Carbon::parse($log->date)->day);
+            ->groupBy('personnel_id')
+            ->map(fn ($rows) => $rows->groupBy(fn ($log) => Carbon::parse($log->date)->day));
 
-        foreach ($dayMap as $day => $_) {
-            $date = $start->copy()->day($day)->toDateString();
-            $dayLogs = $logs->get($day, collect());
-            $attendance = Attendance::where('personnel_id', $personnelId)
-                ->whereDate('date', $date)
-                ->first();
+        $attendanceByPersonDate = Attendance::whereIn('personnel_id', $ids)
+            ->whereBetween('date', [$from, $to])
+            ->get()
+            ->groupBy(fn ($attendance) => $attendance->personnel_id.'|'.Carbon::parse($attendance->date)->toDateString());
 
-            $times = $this->timesForDtrDay($dayLogs, $attendance);
-            if ($times === []) {
-                continue;
-            }
+        $locatorGroups = [];
+        $locators = LocatorRequest::query()
+            ->with('staffUser')
+            ->where('status', 'approved')
+            ->whereDate('date', '<=', $to)
+            ->where(function ($query) use ($from) {
+                $query->whereDate('date_to', '>=', $from)
+                    ->orWhere(function ($query) use ($from) {
+                        $query->whereNull('date_to')->whereDate('date', '>=', $from);
+                    });
+            })
+            ->where(function ($query) use ($ids) {
+                $query->whereIn('personnel_id', $ids)
+                    ->orWhereHas('staffUser', fn ($staff) => $staff->whereIn('personnel_id', $ids));
+            })
+            ->get();
 
-            $mapped = $this->mapScansToDtr($times);
-            $dayMap[$day] = array_merge(
-                $dayMap[$day],
-                array_map(fn ($t) => $this->formatDtrTime($t), $mapped)
-            );
-            if ($dayMap[$day]['am_arrival'] || $dayMap[$day]['am_departure']
-                || $dayMap[$day]['pm_arrival'] || $dayMap[$day]['pm_departure']
-                || $dayMap[$day]['ot_arrival'] || $dayMap[$day]['ot_departure']) {
-                $dayMap[$day]['label'] = null;
+        foreach ($locators as $locator) {
+            $coveredIds = array_filter([
+                (int) $locator->personnel_id,
+                (int) ($locator->staffUser->personnel_id ?? 0),
+            ]);
+            foreach (array_unique($coveredIds) as $coveredId) {
+                if (! in_array($coveredId, $ids, true)) {
+                    continue;
+                }
+                $locatorGroups[$coveredId][] = $locator;
             }
         }
 
-        $this->applyApprovedLocatorMarks($dayMap, $personnelId, $start->toDateString(), $end->toDateString());
+        $maps = [];
+        foreach ($ids as $personnelId) {
+            $dayMap = [];
+            for ($d = 1; $d <= $daysInMonth; $d++) {
+                $label = null;
+                if (isset($holidays[$d])) {
+                    $name = strtoupper((string) ($holidays[$d]->name ?? 'HOLIDAY'));
+                    $label = str_contains($name, 'HOLIDAY') ? $name : $name.' (HOLIDAY)';
+                }
 
-        return $dayMap;
+                $dayMap[$d] = [
+                    'am_arrival' => null,
+                    'am_departure' => null,
+                    'pm_arrival' => null,
+                    'pm_departure' => null,
+                    'ot_arrival' => null,
+                    'ot_departure' => null,
+                    'label' => $label,
+                ];
+            }
+
+            $logs = $logsByPerson->get($personnelId, collect());
+            foreach ($dayMap as $day => $_) {
+                $date = $start->copy()->day($day)->toDateString();
+                $dayLogs = $logs->get($day, collect());
+                $attendance = $attendanceByPersonDate->get($personnelId.'|'.$date)?->first();
+
+                $times = $this->timesForDtrDay($dayLogs, $attendance);
+                if ($times === []) {
+                    continue;
+                }
+
+                $mapped = $this->mapScansToDtr($times);
+                $dayMap[$day] = array_merge(
+                    $dayMap[$day],
+                    array_map(fn ($t) => $this->formatDtrTime($t), $mapped)
+                );
+                if ($dayMap[$day]['am_arrival'] || $dayMap[$day]['am_departure']
+                    || $dayMap[$day]['pm_arrival'] || $dayMap[$day]['pm_departure']
+                    || $dayMap[$day]['ot_arrival'] || $dayMap[$day]['ot_departure']) {
+                    $dayMap[$day]['label'] = null;
+                }
+            }
+
+            $this->applyApprovedLocatorMarks(
+                $dayMap,
+                $personnelId,
+                $from,
+                $to,
+                collect($locatorGroups[$personnelId] ?? [])
+            );
+            $maps[$personnelId] = $dayMap;
+        }
+
+        return $maps;
     }
 
     /**
@@ -232,11 +297,13 @@ class DtrExportService
      *
      * @param  array<int, array{am_arrival:?string,am_departure:?string,pm_arrival:?string,pm_departure:?string,label:?string}>  $dayMap
      */
-    protected function applyApprovedLocatorMarks(array &$dayMap, int $personnelId, string $from, string $to): void
+    protected function applyApprovedLocatorMarks(array &$dayMap, int $personnelId, string $from, string $to, $locators = null): void
     {
-        $locators = LocatorRequest::query()
-            ->approvedCovering($personnelId, $from, $to)
-            ->get();
+        if ($locators === null) {
+            $locators = LocatorRequest::query()
+                ->approvedCovering($personnelId, $from, $to)
+                ->get();
+        }
 
         if ($locators->isEmpty()) {
             return;
@@ -419,6 +486,12 @@ class DtrExportService
         $pdfPath = $outputDir.DIRECTORY_SEPARATOR.sprintf('DTR_ALL_%s.pdf', $stamp);
         $finalPdf = $outputDir.DIRECTORY_SEPARATOR.sprintf('DTR_ALL_%s.pdf', $monthCarbon->format('Y-m'));
 
+        // Hostinger has no Microsoft Excel. Building one workbook per employee
+        // runs past nginx and comes back as 504. Write the PDF directly.
+        if (! $this->excelPdfConversionAvailable()) {
+            return $this->generateBlankLayoutPdf($month, $finalPdf);
+        }
+
         try {
             // Unique workbook path avoids "Resource temporarily unavailable" locks on DTR_ALL_YYYY-MM.xlsx
             $excelPath = $this->generateBulkExcel($month, $outputDir.DIRECTORY_SEPARATOR.sprintf('DTR_ALL_%s.xlsx', $stamp));
@@ -472,11 +545,12 @@ class DtrExportService
         $verifier = DocumentSignatory::resolve('dtr_verifier')
             ?? config('smartdtr.dtr_verifier_name', 'MARIE ROSE P. RAMOS');
 
+        $dayMaps = $this->buildMonthlyDayMaps($people, $month);
         $records = [];
         foreach ($people as $person) {
             $records[] = [
                 'personnel' => $person,
-                'dayMap' => $this->buildMonthlyDayMap($person->id, $month),
+                'dayMap' => $dayMaps[$person->id],
                 'regular' => $person->official_hours_regular ?: '7:30-11:30 / 1:00-5:00',
                 'saturday' => $person->official_hours_saturday ?: 'as required',
             ];
@@ -618,6 +692,11 @@ class DtrExportService
         $zip->close();
 
         return $zipPath;
+    }
+
+    protected function excelPdfConversionAvailable(): bool
+    {
+        return PHP_OS_FAMILY === 'Windows' && is_file(base_path('scripts/excel-to-pdf.ps1'));
     }
 
     public function convertExcelToPdf(string $excelPath, ?string $pdfPath = null): string

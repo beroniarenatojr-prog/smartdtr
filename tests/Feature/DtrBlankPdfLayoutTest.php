@@ -50,4 +50,28 @@ class DtrBlankPdfLayoutTest extends TestCase
         $this->assertStringContainsString('D<br>A<br>Y', $html);
         $this->assertEquals(2, substr_count($html, 'td class="form"'));
     }
+
+    public function test_bulk_pdf_is_written_without_excel_when_conversion_is_unavailable(): void
+    {
+        Personnel::create([
+            'name' => 'Aiza T Donor',
+            'role' => 'Teacher',
+            'employee_number' => 'EMP-DTR-2',
+            'is_active' => true,
+        ]);
+
+        $service = new class extends DtrExportService
+        {
+            protected function excelPdfConversionAvailable(): bool
+            {
+                return false;
+            }
+        };
+
+        $path = $service->generateBulkPdf(now()->format('Y-m'));
+
+        $this->assertFileExists($path);
+        $this->assertGreaterThan(2000, filesize($path));
+        $this->assertStringEndsWith('.pdf', $path);
+    }
 }
