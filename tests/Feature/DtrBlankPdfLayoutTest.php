@@ -74,4 +74,29 @@ class DtrBlankPdfLayoutTest extends TestCase
         $this->assertGreaterThan(2000, filesize($path));
         $this->assertStringEndsWith('.pdf', $path);
     }
+
+    public function test_bulk_pdf_joins_more_employees_than_one_chunk(): void
+    {
+        foreach (range(1, 5) as $n) {
+            Personnel::create([
+                'name' => 'Employee '.$n,
+                'role' => 'Teacher',
+                'employee_number' => 'EMP-DTR-CHUNK-'.$n,
+                'is_active' => true,
+            ]);
+        }
+
+        $service = new class extends DtrExportService
+        {
+            protected function excelPdfConversionAvailable(): bool
+            {
+                return false;
+            }
+        };
+
+        $path = $service->generateBulkPdf(now()->format('Y-m'));
+
+        $this->assertFileExists($path);
+        $this->assertGreaterThan(5000, filesize($path));
+    }
 }

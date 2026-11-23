@@ -10,6 +10,7 @@ use App\Models\LocatorRequest;
 use App\Models\Personnel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use setasign\Fpdi\Fpdi;
 use DOMDocument;
 use DOMXPath;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -546,23 +547,6 @@ class DtrExportService
             ?? config('smartdtr.dtr_verifier_name', 'MARIE ROSE P. RAMOS');
 
         $dayMaps = $this->buildMonthlyDayMaps($people, $month);
-        $records = [];
-        foreach ($people as $person) {
-            $records[] = [
-                'personnel' => $person,
-                'dayMap' => $dayMaps[$person->id],
-                'regular' => $person->official_hours_regular ?: '7:30-11:30 / 1:00-5:00',
-                'saturday' => $person->official_hours_saturday ?: 'as required',
-            ];
-        }
-
-        // Folio landscape ≈ 13" × 8.5" in points (72 dpi): 936 × 612
-        $pdf = Pdf::loadView('reports.dtr-blank-pdf', [
-            'records' => $records,
-            'monthLabel' => $monthLabel,
-            'daysInMonth' => $daysInMonth,
-            'verifier' => $verifier,
-        ])->setPaper([0, 0, 936, 612], 'landscape');
 
         $outputDir = storage_path('app/exports');
         if (! is_dir($outputDir)) {
@@ -570,13 +554,97 @@ class DtrExportService
         }
 
         $pdfPath ??= $outputDir.DIRECTORY_SEPARATOR.sprintf('DTR_ALL_%s.pdf', $monthCarbon->format('Y-m'));
-        $pdf->save($pdfPath);
+
+        // One giant HTML document for every employee blows DomPDF's memory and
+        // comes back as a 500. Render a few people at a time, then join the pages.
+        $chunkPaths = [];
+        $stamp = uniqid('dtr_', true);
+        foreach ($people->values()->chunk(4) as $index => $chunk) {
+            $records = [];
+            foreach ($chunk as $person) {
+                $records[] = [
+                    'personnel' => $person,
+                    'dayMap' => $dayMaps[$person->id] ?? $dayMaps[(int) $person->id] ?? [],
+                    'regular' => $person->official_hours_regular ?: '7:30-11:30 / 1:00-5:00',
+                    'saturday' => $person->official_hours_saturday ?: 'as required',
+                ];
+            }
+
+            $chunkPath = $outputDir.DIRECTORY_SEPARATOR.sprintf('DTR_PART_%s_%d.pdf', $stamp, $index);
+            $this->writeBlankLayoutChunk($records, $monthLabel, $daysInMonth, $verifier, $chunkPath);
+            $chunkPaths[] = $chunkPath;
+        }
+
+        try {
+            if (count($chunkPaths) === 1) {
+                if (is_file($pdfPath)) {
+                    @unlink($pdfPath);
+                }
+                if (! @rename($chunkPaths[0], $pdfPath)) {
+                    if (! @copy($chunkPaths[0], $pdfPath)) {
+                        throw new RuntimeException('Failed to create DTR PDF from blank template layout.');
+                    }
+                    @unlink($chunkPaths[0]);
+                }
+            } else {
+                $this->mergePdfFiles($chunkPaths, $pdfPath);
+            }
+        } finally {
+            foreach ($chunkPaths as $chunkPath) {
+                if (is_file($chunkPath) && $chunkPath !== $pdfPath) {
+                    @unlink($chunkPath);
+                }
+            }
+        }
 
         if (! is_file($pdfPath)) {
             throw new RuntimeException('Failed to create DTR PDF from blank template layout.');
         }
 
         return $pdfPath;
+    }
+
+    /**
+     * @param  list<array{personnel:mixed,dayMap:array,regular:string,saturday:string}>  $records
+     */
+    protected function writeBlankLayoutChunk(array $records, string $monthLabel, int $daysInMonth, string $verifier, string $chunkPath): void
+    {
+        $pdf = Pdf::loadView('reports.dtr-blank-pdf', [
+            'records' => $records,
+            'monthLabel' => $monthLabel,
+            'daysInMonth' => $daysInMonth,
+            'verifier' => $verifier,
+        ])->setPaper([0, 0, 936, 612], 'landscape');
+
+        $pdf->save($chunkPath);
+        unset($pdf);
+
+        if (! is_file($chunkPath)) {
+            throw new RuntimeException('Failed to create DTR PDF from blank template layout.');
+        }
+    }
+
+    /**
+     * @param  list<string>  $files
+     */
+    protected function mergePdfFiles(array $files, string $outputPath): void
+    {
+        $pdf = new Fpdi();
+        foreach ($files as $file) {
+            $pageCount = $pdf->setSourceFile($file);
+            for ($page = 1; $page <= $pageCount; $page++) {
+                $template = $pdf->importPage($page);
+                $size = $pdf->getTemplateSize($template);
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($template);
+            }
+        }
+
+        $pdf->Output('F', $outputPath);
+
+        if (! is_file($outputPath)) {
+            throw new RuntimeException('Failed to join the DTR pages into one PDF.');
+        }
     }
 
     /**

@@ -365,7 +365,10 @@ class DashboardController extends Controller
         try {
             // Excel remains an internal template/conversion detail; admins receive PDF only.
             $path = $this->dtrService->generateBulkPdf($month);
-            $filename = 'DTR_ALL_'.$month.'.pdf';
+
+            return response()->download($path, 'DTR_ALL_'.$month.'.pdf', [
+                'Content-Type' => 'application/pdf',
+            ]);
         } catch (\Throwable $e) {
             report($e);
 
@@ -373,10 +376,6 @@ class DashboardController extends Controller
                 ->route('admin.dtr')
                 ->with('error', 'DTR download failed: '.$e->getMessage());
         }
-
-        return response()->download($path, $filename, [
-            'Content-Type' => 'application/pdf',
-        ]);
     }
 
     public function downloadReportPdf(Request $request)
